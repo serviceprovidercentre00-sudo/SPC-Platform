@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "240621722636",
+    "project_id": "spcproject-c45b4-5c782",
+    "storage_bucket": "spcproject-c45b4-5c782.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:240621722636:android:f04a79a3f431d93be62229",
+        "android_client_info": {
+          "package_name": "com.rajeev62023.SPCPlatform"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "240621722636-ejevcb8mesqj6skjtpcj55ci3g0t7lrt.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rajeev62023.SPCPlatform",
+            "certificate_hash": "10eaa6a3f35b101318a85ad3b263faa4ac4bb805"
+          }
+        },
+        {
+          "client_id": "240621722636-nc45ug7d282o6f4bvs3ifpam6ndj7fgc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rajeev62023.SPCPlatform",
+            "certificate_hash": "2987960b32cbb56431e8a88513eb082d8238b3d6"
+          }
+        },
+        {
+          "client_id": "240621722636-gc8k5s8vai45mehoqb5te2s175070jci.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAk0HvWSO7rhaWWJfabnS7mm1XCiQ6E-0M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "240621722636-0pkt23jelngua0r2inh4tsie63uts2e3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
