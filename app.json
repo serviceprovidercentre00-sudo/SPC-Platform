@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "spcplatform",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.rajeev62023.SPCPlatform"
@@ -16,6 +16,7 @@
       "package": "com.rajeev62023.SPCPlatform",
       "googleServicesFile": "./google-services.json",
       "edgeToEdgeEnabled": true,
+      "newArchEnabled": true,
       "predictiveBackGestureEnabled": false,
       "adaptiveIcon": {
         "backgroundColor": "#002D62",
