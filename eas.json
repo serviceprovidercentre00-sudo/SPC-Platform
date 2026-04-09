@@ -9,12 +9,11 @@
       "distribution": "internal"
     },
     "preview": {
-      "node": "20.10.0",
-      "image": "ubuntu-22.04-jdk-17-ndk-r26b",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
       },
+      "node": "20.10.0",
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
@@ -24,7 +23,7 @@
       "android": {
         "buildType": "app-bundle"
       },
-      "image": "ubuntu-22.04-jdk-17-ndk-r26b"
+      "node": "20.10.0"
     }
   },
   "submit": {
