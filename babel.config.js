@@ -3,8 +3,9 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
-      'react-native-worklets-core/plugin', // Pehle worklets
-      'react-native-reanimated/plugin',    // Phir reanimated
+      // Order dhyan se: Worklets hamesha Reanimated se PEHLE aayega
+      'react-native-worklets-core/plugin', 
+      'react-native-reanimated/plugin',
     ],
   };
 };
