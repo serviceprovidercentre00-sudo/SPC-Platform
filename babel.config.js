@@ -1,11 +1,10 @@
 module.exports = function (api) {
   api.cache(true);
   return {
-    presets: [
-      ["babel-preset-expo", { jsxImportSource: "nativewind" }] // Agar NativeWind use kar rahe hain toh
-    ],
+    presets: ['babel-preset-expo'],
     plugins: [
-      // REQUIRED: Expo Router ke liye ye hona hi chahiye
+      'react-native-worklets-core/plugin', // Pehle worklets
+      'react-native-reanimated/plugin',    // Phir reanimated
     ],
   };
 };
