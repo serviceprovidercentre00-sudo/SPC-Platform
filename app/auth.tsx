@@ -9,9 +9,9 @@ import {
   GoogleAuthProvider, signInWithPopup, signInWithRedirect, 
   getRedirectResult, onAuthStateChanged, 
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  signInWithPhoneNumber, RecaptchaVerifier
+  signInWithPhoneNumber
 } from 'firebase/auth';
-import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
+// ✅ FirebaseRecaptchaVerifierModal ko yahan se hata diya gaya hai
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 
@@ -27,6 +27,7 @@ const AuthScreen = () => {
   const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   
+  // ✅ recaptchaVerifier ref ab null hi rahega ya placeholder ki tarah use hoga
   const recaptchaVerifier = useRef(null);
   const router = useRouter();
 
@@ -64,12 +65,14 @@ const AuthScreen = () => {
     setLoading(true);
     try {
       const phoneNumber = `+91${phone}`;
+      // Note: Re-captcha ke bina ye error de sakta hai, iska permanent solution Firebase Console mein 
+      // Re-captcha configure karna hoga, par abhi build nikalne ke liye ye zaroori hai.
       const confirmation = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier.current);
       setConfirmData(confirmation);
       Alert.alert("SPC", "OTP bhej diya gaya hai.");
     } catch (error) {
       console.log("OTP Error:", error);
-      Alert.alert("Error", "OTP nahi gaya. Network check karein.");
+      Alert.alert("Error", "OTP nahi gaya. Firebase settings check karein.");
     } finally { setLoading(false); }
   };
 
@@ -100,7 +103,6 @@ const AuthScreen = () => {
     } finally { setLoading(false); }
   };
 
-  // --- GOOGLE LOGIN ---
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
@@ -121,13 +123,7 @@ const AuthScreen = () => {
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
       
-      {Platform.OS !== 'web' && (
-        <FirebaseRecaptchaVerifierModal 
-          ref={recaptchaVerifier} 
-          firebaseConfig={auth.app.options} 
-          attemptInvisibleVerification={true} 
-        />
-      )}
+      {/* ✅ FirebaseRecaptchaVerifierModal component yahan se hata diya gaya hai */}
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
@@ -188,7 +184,6 @@ const AuthScreen = () => {
   );
 };
 
-// ... Styles wahi rahenge jo aapne bheje hain ...
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#002D62' },
   loader: { flex: 1, backgroundColor: '#002D62', justifyContent: 'center', alignItems: 'center' },
