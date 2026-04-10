@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Stack } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import { 
@@ -8,7 +9,7 @@ import {
 // Firebase Imports
 import { db } from '../../config/firebase'; 
 import { 
-  collection, addDoc, serverTimestamp, query, onSnapshot, orderBy, getDocs 
+  collection, addDoc, serverTimestamp, query, onSnapshot, orderBy 
 } from "firebase/firestore";
 import * as ImagePicker from 'expo-image-picker';
 
@@ -49,110 +50,89 @@ function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('bookings');
   const [loading, setLoading] = useState(false);
 
-  const [users, setUsers] = useState<any[]>([]);
-  const [bookings, setBookings] = useState<any[]>([]);
-  const [technicians, setTechnicians] = useState<any[]>([]);
+  // Data States
+  const [users, setUsers] = useState([]);
+  const [bookings, setBookings] = useState([]);
+  const [technicians, setTechnicians] = useState([]);
 
+  // Form States
   const [serviceForm, setServiceForm] = useState({ name: '', price: '', image: null });
   const [techForm, setTechForm] = useState({ name: '', phone: '', skill: '', image: null });
   const [adForm, setAdForm] = useState({ title: '', image: null });
 
   useEffect(() => {
-    const qBookings = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-    const unsubBookings = onSnapshot(qBookings, (snap) => setBookings(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+    // 1. Real-time Bookings (Orders)
+    const unsubBookings = onSnapshot(query(collection(db, "orders"), orderBy("createdAt", "desc")), (snap) => {
+      setBookings(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
 
-    const qTechs = query(collection(db, "workers"), orderBy("createdAt", "desc"));
-    const unsubTechs = onSnapshot(qTechs, (snap) => setTechnicians(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+    // 2. Real-time Technicians (Workers)
+    const unsubTechs = onSnapshot(query(collection(db, "workers"), orderBy("createdAt", "desc")), (snap) => {
+      setTechnicians(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
 
-    const fetchUsers = async () => {
-      const snap = await getDocs(collection(db, "users"));
-      setUsers(snap.docs.map(doc => doc.data()));
-    };
-    fetchUsers();
+    // 3. Real-time Users (Customers)
+    const unsubUsers = onSnapshot(query(collection(db, "users"), orderBy("lastLogin", "desc")), (snap) => {
+      setUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
 
-    return () => { unsubBookings(); unsubTechs(); };
+    return () => { unsubBookings(); unsubTechs(); unsubUsers(); };
   }, []);
 
-  // --- INTERNAL FIX: Cloudinary Upload (Android Friendly) ---
-  const uploadToCloudinary = async (uri: string) => {
+  // --- Image Upload (Cloudinary) ---
+  const uploadToCloudinary = async (uri) => {
     try {
       const formData = new FormData();
       const filename = uri.split('/').pop();
       const match = /\.(\w+)$/.exec(filename || '');
       const type = match ? `image/${match[1]}` : `image`;
-
       formData.append('file', {
         uri: Platform.OS === 'android' ? uri : uri.replace('file://', ''),
         type: type,
         name: filename || 'upload.jpg',
-      } as any);
-
+      });
       formData.append('upload_preset', 'spc_uploads'); 
       formData.append('cloud_name', 'dmp860spk');
 
-      const response = await fetch(
-        'https://api.cloudinary.com/v1_1/dmp860spk/image/upload', 
-        { method: 'POST', body: formData }
-      );
+      const response = await fetch('https://api.cloudinary.com/v1_1/dmp860spk/image/upload', { method: 'POST', body: formData });
       const data = await response.json();
       return data.secure_url || null;
-    } catch (err) {
-      console.log("Upload Error:", err);
-      return null;
-    }
+    } catch (err) { return null; }
   };
 
-  const pickImage = async (setter: Function) => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.3,
-    });
+  const pickImage = async (setter) => {
+    let result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.3 });
     if (!result.canceled) setter(result.assets[0].uri);
   };
 
-  // --- INTERNAL FIX: Dual Field Mapping (img & image) ---
-  const handleSave = async (col: string, data: any, reset: Function) => {
-    if (!data.name && !data.title) {
-        Alert.alert("Error", "Please fill name/title");
-        return;
-    }
+  const handleSave = async (col, data, reset) => {
+    if (!data.name && !data.title) return Alert.alert("Error", "Details bhariye!");
     setLoading(true);
     try {
       let finalData = { ...data };
       if (data.image) {
-        const imageUrl = await uploadToCloudinary(data.image);
-        if (imageUrl) {
-          finalData.image = imageUrl;   // Naye code ke liye
-          finalData.img = imageUrl;     // Purane code ke liye
-          finalData.imageUrl = imageUrl; // Safe side ke liye
-        }
+        const url = await uploadToCloudinary(data.image);
+        if (url) { finalData.image = url; finalData.img = url; }
       }
-      
-      // Price format fix
       if (finalData.price) finalData.price = Number(finalData.price);
-
       await addDoc(collection(db, col), { ...finalData, createdAt: serverTimestamp() });
-      Alert.alert("Success", "Data Published to SPC App!");
+      Alert.alert("Success", "Data Published!");
       reset();
-    } catch (e: any) { 
-      Alert.alert("Error", e.message); 
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { Alert.alert("Error", e.message); }
+    finally { setLoading(false); }
   };
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'SPC Admin', headerShown: true }} />
+      <Stack.Screen options={{ title: 'SPC Admin Panel', headerShown: true }} />
       
       <View style={styles.tabBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {[
-            { id: 'bookings', label: '📥 Bookings' },
-            { id: 'users', label: '👥 Users' },
-            { id: 'services', label: '🛠️ Add Service' },
-            { id: 'techs', label: '👷 Technicians' },
+            { id: 'bookings', label: '📥 Orders' },
+            { id: 'users', label: '👥 Customers' },
+            { id: 'services', label: '🛠️ Services' },
+            { id: 'techs', label: '👷 Workers' },
             { id: 'ads', label: '🖼️ Banners' },
             { id: 'payments', label: '💰 Payments' }
           ].map((tab) => (
@@ -164,81 +144,84 @@ function AdminDashboard() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {loading && <ActivityIndicator size="large" color="#002D62" style={{margin: 20}} />}
+        {loading && <ActivityIndicator size="large" color="#002D62" style={{margin:20}} />}
 
-        {activeTab === 'bookings' && (
-          bookings.map(item => (
-            <View key={item.id} style={styles.card}>
-              <Text style={styles.statusBadge}>NEW ORDER</Text>
-              <Text style={styles.boldText}>Customer: {item.customerName || 'User'}</Text>
-              <Text style={styles.smallText}>📞 {item.customerPhone}</Text>
-              <Text style={styles.smallText}>📍 {item.customerAddress}</Text>
-              <Text style={styles.itemTag}>Service: {item.items?.map((i: any) => i.name).join(', ')}</Text>
-              <TouchableOpacity style={styles.callBtn} onPress={() => Linking.openURL(`tel:${item.customerPhone}`)}>
-                <Text style={styles.btnText}>CALL NOW</Text>
-              </TouchableOpacity>
-            </View>
-          ))
-        )}
+        {/* 1. ORDERS TAB */}
+        {activeTab === 'bookings' && bookings.map(item => (
+          <View key={item.id} style={styles.card}>
+            <Text style={styles.statusBadge}>NEW ORDER</Text>
+            <Text style={styles.boldText}>User: {item.customerName || 'Customer'}</Text>
+            <Text style={styles.smallText}>📍 {item.customerAddress}</Text>
+            <Text style={styles.smallText}>📱 {item.customerPhone}</Text>
+            <Text style={styles.itemTag}>Services: {item.items?.map(i => i.name).join(', ')}</Text>
+            <TouchableOpacity style={styles.callBtn} onPress={() => Linking.openURL(`tel:${item.customerPhone}`)}>
+              <Text style={styles.btnText}>CALL CUSTOMER</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
 
-        {activeTab === 'users' && (
-          users.map((u, index) => (
-            <View key={index} style={styles.userCard}>
-              <Text style={styles.boldText}>{u.name || 'Anonymous'}</Text>
-              <Text style={styles.smallText}>✉️ {u.email}</Text>
-              <Text style={styles.smallText}>Joined: {u.createdAt?.toDate().toLocaleDateString()}</Text>
-            </View>
-          ))
-        )}
+        {/* 2. CUSTOMERS TAB (Users only) */}
+        {activeTab === 'users' && users.map(u => (
+          <View key={u.id} style={styles.userCard}>
+            <Text style={styles.boldText}>👤 {u.name || 'No Name'}</Text>
+            <Text style={styles.smallText}>✉️ {u.email}</Text>
+            <Text style={styles.smallText}>📞 {u.phone || 'No Phone'}</Text>
+            <Text style={styles.smallText}>📍 {u.address || 'Patna'}</Text>
+          </View>
+        ))}
 
+        {/* 3. ADD SERVICE */}
         {activeTab === 'services' && (
           <View style={styles.formCard}>
-            <TextInput style={styles.input} placeholder="Service Name (e.g. AC Repair)" value={serviceForm.name} onChangeText={t => setServiceForm({...serviceForm, name: t})} />
+            <TextInput style={styles.input} placeholder="Service Name" value={serviceForm.name} onChangeText={t => setServiceForm({...serviceForm, name: t})} />
             <TextInput style={styles.input} placeholder="Price (₹)" keyboardType="numeric" value={serviceForm.price} onChangeText={t => setServiceForm({...serviceForm, price: t})} />
-            <TouchableOpacity style={styles.uploadBox} onPress={() => pickImage((uri:any) => setServiceForm({...serviceForm, image: uri}))}>
-              {serviceForm.image ? <Image source={{uri: serviceForm.image}} style={styles.previewImg} /> : <Text>📷 Select Service Image</Text>}
+            <TouchableOpacity style={styles.uploadBox} onPress={() => pickImage((uri) => setServiceForm({...serviceForm, image: uri}))}>
+              {serviceForm.image ? <Image source={{uri: serviceForm.image}} style={styles.previewImg} /> : <Text>📷 Select Image</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={styles.saveBtn} onPress={() => handleSave("services", serviceForm, () => setServiceForm({name:'', price:'', image:null}))}>
-              <Text style={styles.btnText}>ADD TO APP</Text>
+              <Text style={styles.btnText}>PUBLISH SERVICE</Text>
             </TouchableOpacity>
           </View>
         )}
 
+        {/* 4. WORKERS TAB */}
         {activeTab === 'techs' && (
           <View>
             <View style={styles.formCard}>
               <TextInput style={styles.input} placeholder="Worker Name" value={techForm.name} onChangeText={t => setTechForm({...techForm, name: t})} />
-              <TextInput style={styles.input} placeholder="Phone Number" keyboardType="numeric" value={techForm.phone} onChangeText={t => setTechForm({...techForm, phone: t})} />
-              <TextInput style={styles.input} placeholder="Specialty (AC, Fridge, etc.)" value={techForm.skill} onChangeText={t => setTechForm({...techForm, skill: t})} />
+              <TextInput style={styles.input} placeholder="Skill (AC, Plumber...)" value={techForm.skill} onChangeText={t => setTechForm({...techForm, skill: t})} />
               <TouchableOpacity style={styles.saveBtn} onPress={() => handleSave("workers", techForm, () => setTechForm({name:'', phone:'', skill:'', image:null}))}>
-                <Text style={styles.btnText}>REGISTER TECHNICIAN</Text>
+                <Text style={styles.btnText}>ADD WORKER</Text>
               </TouchableOpacity>
             </View>
             {technicians.map(t => (
-              <View key={t.id} style={styles.card}>
-                <Text style={styles.boldText}>👷 {t.name}</Text>
-                <Text style={styles.smallText}>Skill: {t.skill} | 📞 {t.phone}</Text>
-              </View>
+              <View key={t.id} style={styles.card}><Text style={styles.boldText}>👷 {t.name} ({t.skill})</Text></View>
             ))}
           </View>
         )}
 
+        {/* 5. PAYMENTS TAB */}
         {activeTab === 'ads' && (
-          <View style={styles.formCard}>
-            <TextInput style={styles.input} placeholder="Banner Title" value={adForm.title} onChangeText={t => setAdForm({...adForm, title: t})} />
-            <TouchableOpacity style={styles.adBox} onPress={() => pickImage((uri:any) => setAdForm({...adForm, image: uri}))}>
-              {adForm.image ? <Image source={{uri: adForm.image}} style={styles.previewImg} /> : <Text>🖼️ Upload Banner (16:9)</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, {backgroundColor: '#D4AF37'}]} onPress={() => handleSave("banners", adForm, () => setAdForm({title:'', image:null}))}>
-              <Text style={[styles.btnText, {color: '#002D62'}]}>PUBLISH BANNER</Text>
-            </TouchableOpacity>
-          </View>
+           <View style={styles.formCard}>
+              <TextInput style={styles.input} placeholder="Banner Title" value={adForm.title} onChangeText={t => setAdForm({...adForm, title: t})} />
+              <TouchableOpacity style={styles.adBox} onPress={() => pickImage((uri) => setAdForm({...adForm, image: uri}))}>
+                {adForm.image ? <Image source={{uri: adForm.image}} style={styles.previewImg} /> : <Text>🖼️ Upload Banner</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.saveBtn, {backgroundColor:'#D4AF37'}]} onPress={() => handleSave("banners", adForm, () => setAdForm({title:'', image:null}))}>
+                <Text style={[styles.btnText, {color:'#002D62'}]}>SAVE BANNER</Text>
+              </TouchableOpacity>
+           </View>
         )}
 
         {activeTab === 'payments' && (
           <View style={styles.card}>
-            <Text style={styles.boldText}>Total Revenue: ₹0.00</Text>
-            <Text style={styles.smallText}>Online payments integration is pending.</Text>
+            <Text style={styles.boldText}>💰 Payment Status</Text>
+            <Text style={{marginTop:10, color:'#666'}}>Orders ke sath payment status update karne ka feature testing mein hai.</Text>
+            {bookings.map(b => b.paymentStatus && (
+               <View key={b.id} style={styles.itemTag}>
+                  <Text>{b.customerName}: {b.paymentStatus}</Text>
+               </View>
+            ))}
           </View>
         )}
       </ScrollView>
@@ -249,30 +232,30 @@ function AdminDashboard() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F0F3F5' },
   authContainer: { flex: 1, backgroundColor: '#002D62', justifyContent: 'center', padding: 30 },
-  lockCard: { backgroundColor: '#FFF', padding: 40, borderRadius: 25, alignItems: 'center', elevation: 10 },
+  lockCard: { backgroundColor: '#FFF', padding: 40, borderRadius: 25, alignItems: 'center' },
   lockEmoji: { fontSize: 50, marginBottom: 15 },
-  lockTitle: { fontSize: 22, fontWeight: 'bold', color: '#002D62', marginBottom: 25 },
-  authInput: { width: '100%', height: 50, borderBottomWidth: 2, borderColor: '#D4AF37', marginBottom: 30, textAlign: 'center', fontSize: 20, color: '#333' },
-  unlockBtn: { backgroundColor: '#D4AF37', paddingVertical: 15, borderRadius: 12, width: '100%', alignItems: 'center' },
-  unlockBtnText: { color: '#002D62', fontWeight: 'bold', fontSize: 16 },
+  lockTitle: { fontSize: 20, fontWeight: 'bold', color: '#002D62', marginBottom: 25 },
+  authInput: { width: '100%', height: 50, borderBottomWidth: 2, borderColor: '#D4AF37', marginBottom: 30, textAlign: 'center', fontSize: 18 },
+  unlockBtn: { backgroundColor: '#D4AF37', padding: 15, borderRadius: 12, width: '100%', alignItems: 'center' },
+  unlockBtnText: { color: '#002D62', fontWeight: 'bold' },
   tabBar: { backgroundColor: '#002D62', height: 60 },
-  tab: { paddingHorizontal: 20, justifyContent: 'center', height: '100%' },
+  tab: { paddingHorizontal: 20, justifyContent: 'center' },
   activeTab: { borderBottomWidth: 4, borderBottomColor: '#D4AF37' },
-  tabText: { color: '#CCC', fontWeight: '600' },
-  activeTabText: { color: '#D4AF37' },
+  tabText: { color: '#CCC', fontSize: 13 },
+  activeTabText: { color: '#D4AF37', fontWeight: 'bold' },
   content: { padding: 15 },
-  card: { backgroundColor: '#FFF', padding: 15, borderRadius: 15, marginBottom: 15, elevation: 3, borderLeftWidth: 5, borderLeftColor: '#D4AF37' },
-  userCard: { backgroundColor: '#FFF', padding: 15, borderRadius: 10, marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#EEE' },
-  formCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 15, elevation: 5, marginBottom: 20 },
-  input: { backgroundColor: '#F9F9F9', padding: 15, borderRadius: 10, marginBottom: 15, borderWidth: 1, borderColor: '#EEE' },
-  uploadBox: { height: 120, borderStyle: 'dashed', borderWidth: 2, borderColor: '#CCC', borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 20, overflow: 'hidden' },
-  adBox: { height: 180, borderStyle: 'dashed', borderWidth: 2, borderColor: '#CCC', borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginBottom: 20, overflow: 'hidden' },
+  card: { backgroundColor: '#FFF', padding: 15, borderRadius: 12, marginBottom: 12, elevation: 3, borderLeftWidth: 4, borderLeftColor: '#D4AF37' },
+  userCard: { backgroundColor: '#FFF', padding: 15, borderRadius: 10, marginBottom: 10, borderBottomWidth: 1, borderBottomColor: '#DDD' },
+  formCard: { backgroundColor: '#FFF', padding: 20, borderRadius: 12, elevation: 4 },
+  input: { backgroundColor: '#F9F9F9', padding: 12, borderRadius: 8, marginBottom: 10, borderWidth: 1, borderColor: '#EEE' },
+  uploadBox: { height: 100, borderStyle: 'dashed', borderWidth: 1, borderColor: '#CCC', borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 15, overflow:'hidden' },
+  adBox: { height: 150, borderStyle: 'dashed', borderWidth: 1, borderColor: '#CCC', borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginBottom: 15, overflow:'hidden' },
   previewImg: { width: '100%', height: '100%' },
-  saveBtn: { backgroundColor: '#002D62', padding: 18, borderRadius: 10, alignItems: 'center' },
-  callBtn: { backgroundColor: '#28A745', padding: 12, borderRadius: 8, marginTop: 15, alignItems: 'center' },
+  saveBtn: { backgroundColor: '#002D62', padding: 15, borderRadius: 10, alignItems: 'center' },
+  callBtn: { backgroundColor: '#28A745', padding: 10, borderRadius: 8, marginTop: 10, alignItems: 'center' },
   btnText: { color: '#FFF', fontWeight: 'bold' },
-  boldText: { fontSize: 17, fontWeight: 'bold', color: '#222' },
-  smallText: { fontSize: 13, color: '#666', marginTop: 4 },
-  statusBadge: { backgroundColor: '#D4AF37', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 5, fontSize: 10, color: '#002D62', fontWeight: 'bold', marginBottom: 5 },
-  itemTag: { backgroundColor: '#F0F0F0', padding: 8, borderRadius: 5, marginTop: 10, fontSize: 12, color: '#444' }
+  boldText: { fontSize: 16, fontWeight: 'bold' },
+  smallText: { fontSize: 12, color: '#666', marginTop: 3 },
+  statusBadge: { backgroundColor: '#D4AF37', alignSelf: 'flex-start', padding: 3, borderRadius: 4, fontSize: 9, fontWeight: 'bold', marginBottom: 5 },
+  itemTag: { backgroundColor: '#F0F0F0', padding: 8, borderRadius: 5, marginTop: 5 }
 });

@@ -9,7 +9,6 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
-// Aapka confirmed firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyAk0HvWSO7rhaWWJfabnS7mm1XCiQ6E-0M",
   authDomain: "spcproject-c45b4-5c782.firebaseapp.com",
@@ -19,26 +18,26 @@ const firebaseConfig = {
   appId: "1:240621722636:android:f04a79a3f431d93be62229" 
 };
 
-// Singleton initialization (Avoids multiple app instances)
+// 1. App Initialization
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
+// 2. Auth Initialization (Singleton Pattern)
 let auth;
 
-try {
-  if (Platform.OS === 'web') {
+if (Platform.OS === 'web') {
+  auth = getAuth(app);
+} else {
+  // Mobile par hum check karte hain ki kya auth pehle se initialized hai?
+  try {
     auth = getAuth(app);
-  } else {
-    // Mobile Persistence setup
+  } catch (e) {
+    // Agar initialize nahi hua hai, tabhi initializeAuth call karte hain
     auth = initializeAuth(app, {
       persistence: getReactNativePersistence(AsyncStorage),
     });
   }
-} catch (error) {
-  // Re-initialization error handling for development hot-reloads
-  auth = getAuth(app);
 }
 
 const db = getFirestore(app);
 
-// Exports for other files like auth.tsx and cart.tsx
 export { auth, db, app };

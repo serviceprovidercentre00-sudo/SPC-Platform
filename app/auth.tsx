@@ -1,47 +1,33 @@
 // @ts-nocheck
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
-  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, Image
+  ScrollView, StyleSheet, Text, TouchableOpacity, View, Image
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { 
-  GoogleAuthProvider, signInWithPopup, signInWithRedirect, 
-  getRedirectResult, onAuthStateChanged, 
-  signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  signInWithPhoneNumber
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  onAuthStateChanged 
 } from 'firebase/auth';
-// ✅ FirebaseRecaptchaVerifierModal ko yahan se hata diya gaya hai
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 
-const AuthScreen = () => {
-  const [authMode, setAuthMode] = useState('phone'); 
-  const [isLogin, setIsLogin] = useState(true);
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [confirmData, setConfirmData] = useState(null);
+// Isse "Component not registered" wala error solve ho jayega
+export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  
-  // ✅ recaptchaVerifier ref ab null hi rahega ya placeholder ki tarah use hoga
-  const recaptchaVerifier = useRef(null);
   const router = useRouter();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) router.replace('/(tabs)');
+      if (user) {
+        // Agar user logged in hai toh tabs par bhejo
+        router.replace('/(tabs)');
+      }
       setCheckingAuth(false);
     });
 
-    if (Platform.OS !== 'web') {
-      getRedirectResult(auth).then((result) => {
-        if (result) syncUserToDb(result.user);
-      }).catch(err => console.log("Redirect Result Error:", err));
-    }
     return unsubscribe;
   }, []);
 
@@ -49,164 +35,121 @@ const AuthScreen = () => {
     try {
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
-        name: user.displayName || name || 'SPC User',
-        email: user.email || email || '',
-        phone: user.phoneNumber || phone || '',
+        name: user.displayName || 'SPC User',
+        email: user.email || '',
+        photoURL: user.photoURL || '',
         role: 'user',
         address: 'Patna, Bihar',
         lastLogin: serverTimestamp(),
       }, { merge: true });
-    } catch (e) { console.error("Firestore Error:", e); }
-  };
-
-  // --- PHONE OTP LOGIC ---
-  const handlePhoneSubmit = async () => {
-    if (!phone || phone.length < 10) return Alert.alert("SPC", "10-digit number dalein.");
-    setLoading(true);
-    try {
-      const phoneNumber = `+91${phone}`;
-      // Note: Re-captcha ke bina ye error de sakta hai, iska permanent solution Firebase Console mein 
-      // Re-captcha configure karna hoga, par abhi build nikalne ke liye ye zaroori hai.
-      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier.current);
-      setConfirmData(confirmation);
-      Alert.alert("SPC", "OTP bhej diya gaya hai.");
-    } catch (error) {
-      console.log("OTP Error:", error);
-      Alert.alert("Error", "OTP nahi gaya. Firebase settings check karein.");
-    } finally { setLoading(false); }
-  };
-
-  const verifyOtp = async () => {
-    if (!otp) return Alert.alert("Error", "OTP bhariye.");
-    setLoading(true);
-    try {
-      const result = await confirmData.confirm(otp);
-      await syncUserToDb(result.user);
-    } catch (error) { Alert.alert("Error", "Galat OTP!"); }
-    finally { setLoading(false); }
-  };
-
-  // --- EMAIL AUTH LOGIC ---
-  const handleEmailAuth = async () => {
-    if (!email || !password) return Alert.alert("Error", "Email aur Password bhariye.");
-    setLoading(true);
-    try {
-      let userCredential;
-      if (isLogin) {
-        userCredential = await signInWithEmailAndPassword(auth, email, password);
-      } else {
-        userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      }
-      await syncUserToDb(userCredential.user);
-    } catch (error) {
-      Alert.alert("Auth Error", error.message);
-    } finally { setLoading(false); }
+    } catch (e) { 
+      console.error("Firestore Error:", e); 
+    }
   };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      if (Platform.OS === 'web') {
-        const result = await signInWithPopup(auth, provider);
+      
+      // Note: Mobile par agar Firebase configuration sahi hai toh popup kaam karega.
+      const result = await signInWithPopup(auth, provider);
+      if (result.user) {
         await syncUserToDb(result.user);
-      } else {
-        await signInWithRedirect(auth, provider);
+        router.replace('/(tabs)');
       }
-    } catch (error) { Alert.alert("Error", "Google login failed."); }
-    finally { setLoading(false); }
+    } catch (error) { 
+      console.log("Google Login Error:", error);
+      Alert.alert("SPC Error", "Google login nahi ho paya. Ek baar Firebase Console mein Google Provider check karein."); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  if (checkingAuth) return <View style={styles.loader}><ActivityIndicator size="large" color="#D4AF37" /></View>;
+  if (checkingAuth) {
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" color="#D4AF37" />
+      </View>
+    );
+  }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      style={styles.container}
+    >
       <Stack.Screen options={{ headerShown: false }} />
       
-      {/* ✅ FirebaseRecaptchaVerifierModal component yahan se hata diya gaya hai */}
-
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
-          <Text style={styles.brand}>SPC PATNA</Text>
-          <Text style={styles.motto}>Premium Home Services</Text>
-
-          <View style={styles.tabBar}>
-            <TouchableOpacity onPress={() => {setAuthMode('phone'); setConfirmData(null);}} style={[styles.tab, authMode === 'phone' && styles.activeTab]}>
-              <Text style={[styles.tabText, authMode === 'phone' && styles.activeTabText]}>Mobile</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setAuthMode('email')} style={[styles.tab, authMode === 'email' && styles.activeTab]}>
-              <Text style={[styles.tabText, authMode === 'email' && styles.activeTabText]}>Email</Text>
-            </TouchableOpacity>
+          <View style={styles.logoContainer}>
+             <Text style={styles.brand}>SPC PATNA</Text>
+             <Text style={styles.motto}>Premium Home Services</Text>
           </View>
 
-          {authMode === 'phone' ? (
-            <View>
-              {!confirmData ? (
-                <>
-                  <TextInput style={styles.input} placeholder="Enter Mobile Number" keyboardType="phone-pad" onChangeText={setPhone} maxLength={10} placeholderTextColor="#94A3B8" />
-                  <TouchableOpacity style={styles.mainBtn} onPress={handlePhoneSubmit} disabled={loading}>
-                    {loading ? <ActivityIndicator color="#002D62" /> : <Text style={styles.btnText}>SEND OTP</Text>}
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <TextInput style={styles.input} placeholder="6-digit OTP" keyboardType="number-pad" onChangeText={setOtp} maxLength={6} placeholderTextColor="#94A3B8" />
-                  <TouchableOpacity style={styles.mainBtn} onPress={verifyOtp} disabled={loading}>
-                    {loading ? <ActivityIndicator color="#002D62" /> : <Text style={styles.btnText}>VERIFY OTP</Text>}
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          ) : (
-            <View>
-              {!isLogin && <TextInput style={styles.input} placeholder="Full Name" onChangeText={setName} placeholderTextColor="#94A3B8" />}
-              <TextInput style={styles.input} placeholder="Email Address" onChangeText={setEmail} autoCapitalize="none" placeholderTextColor="#94A3B8" />
-              <TextInput style={styles.input} placeholder="Password" secureTextEntry onChangeText={setPassword} placeholderTextColor="#94A3B8" />
-              <TouchableOpacity style={styles.mainBtn} onPress={handleEmailAuth} disabled={loading}>
-                {loading ? <ActivityIndicator color="#002D62" /> : <Text style={styles.btnText}>{isLogin ? 'LOGIN' : 'REGISTER'}</Text>}
-              </TouchableOpacity>
-            </View>
-          )}
+          <Text style={styles.welcomeText}>Welcome! Please sign in to continue.</Text>
 
-          <View style={styles.separator}><View style={styles.line} /><Text style={styles.orText}>OR</Text><View style={styles.line} /></View>
-
-          <TouchableOpacity style={styles.googleBtn} onPress={handleGoogleLogin}>
-            <Image source={{ uri: 'https://cdn-icons-png.flaticon.com/512/2991/2991148.png' }} style={styles.googleIcon} />
-            <Text style={styles.googleBtnText}>Google Se Judein</Text>
+          <TouchableOpacity 
+            style={styles.googleBtn} 
+            onPress={handleGoogleLogin} 
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#002D62" />
+            ) : (
+              <>
+                <Image 
+                  source={{ uri: 'https://cdn-icons-png.flaticon.com/512/2991/2991148.png' }} 
+                  style={styles.googleIcon} 
+                />
+                <Text style={styles.googleBtnText}>Continue with Google</Text>
+              </>
+            )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={() => setIsLogin(!isLogin)} style={styles.switchBtn}>
-            <Text style={styles.switchText}>{isLogin ? "Naya Account Banayein" : "Account Hai? Login Karein"}</Text>
-          </TouchableOpacity>
+          <Text style={styles.footerText}>Secure Login by Google</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#002D62' },
   loader: { flex: 1, backgroundColor: '#002D62', justifyContent: 'center', alignItems: 'center' },
-  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 20 },
-  card: { backgroundColor: '#FFF', padding: 25, borderRadius: 30, elevation: 10 },
-  brand: { fontSize: 32, fontWeight: 'bold', color: '#002D62', textAlign: 'center' },
-  motto: { textAlign: 'center', color: '#D4AF37', marginBottom: 20, fontWeight: '600' },
-  tabBar: { flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 12, marginBottom: 20, padding: 4 },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10 },
-  activeTab: { backgroundColor: '#FFF', elevation: 2 },
-  tabText: { color: '#64748B', fontWeight: 'bold' },
-  activeTabText: { color: '#002D62' },
-  input: { backgroundColor: '#F8FAFC', padding: 15, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
-  mainBtn: { backgroundColor: '#D4AF37', padding: 18, borderRadius: 12, alignItems: 'center' },
-  btnText: { color: '#002D62', fontWeight: 'bold', fontSize: 16 },
-  separator: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
-  line: { flex: 1, height: 1, backgroundColor: '#E2E8F0' },
-  orText: { marginHorizontal: 10, color: '#94A3B8', fontWeight: 'bold' },
-  googleBtn: { flexDirection: 'row', backgroundColor: '#FFF', padding: 15, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
-  googleIcon: { width: 22, height: 22, marginRight: 10 },
-  googleBtnText: { color: '#1E293B', fontWeight: 'bold' },
-  switchBtn: { marginTop: 20, alignItems: 'center' },
-  switchText: { color: '#002D62', fontWeight: 'bold' }
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 25 },
+  card: { backgroundColor: '#FFF', padding: 35, borderRadius: 30, elevation: 15, alignItems: 'center' },
+  logoContainer: { marginBottom: 30 },
+  brand: { fontSize: 36, fontWeight: 'bold', color: '#002D62', textAlign: 'center' },
+  motto: { textAlign: 'center', color: '#D4AF37', fontWeight: '600', fontSize: 14 },
+  welcomeText: { color: '#64748B', marginBottom: 30, fontSize: 16, textAlign: 'center' },
+  googleBtn: { 
+    flexDirection: 'row', 
+    backgroundColor: '#FFF', 
+    padding: 18, 
+    borderRadius: 15, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    borderWidth: 1.5, 
+    borderColor: '#E2E8F0',
+    width: '100%',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 3,
+      },
+      web: {
+        boxShadow: '0px 2px 4px rgba(0,0,0,0.1)',
+      }
+    }),
+  },
+  googleIcon: { width: 24, height: 24, marginRight: 15 },
+  googleBtnText: { color: '#1E293B', fontWeight: 'bold', fontSize: 18 },
+  footerText: { marginTop: 25, color: '#94A3B8', fontSize: 12 },
 });
-
-export default AuthScreen;

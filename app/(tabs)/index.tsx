@@ -16,7 +16,8 @@ const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { addToCart, cart } = useCart(); 
+  // FIXED: Yahan 'cart' ki jagah 'cartItems' use kiya hai taaki Context se match kare
+  const { addToCart, cartItems } = useCart(); 
   const [services, setServices] = useState([]);
   const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,19 +27,25 @@ export default function HomeScreen() {
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (curr) => setUser(curr));
 
+    // Services fetch logic
     const qServices = query(collection(db, "services"), orderBy("createdAt", "desc"));
     const unsubServices = onSnapshot(qServices, (snap) => {
       const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setServices(data);
       setLoading(false);
     }, (error) => {
-      console.error("Firestore Error:", error);
+      console.error("Services Firestore Error:", error);
       setLoading(false);
     });
 
+    // Banners fetch logic
     const qBanners = query(collection(db, "banners"));
     const unsubBanners = onSnapshot(qBanners, (snap) => {
-      setBanners(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      console.log("Fetched Banners:", data); 
+      setBanners(data);
+    }, (error) => {
+      console.error("Banners Firestore Error:", error);
     });
 
     return () => { unsubAuth(); unsubServices(); unsubBanners(); };
@@ -77,8 +84,9 @@ export default function HomeScreen() {
           </View>
           <TouchableOpacity style={styles.cartIcon} onPress={() => router.push('/cart')}>
             <Text style={{fontSize:22}}>🛒</Text>
-            {cart?.length > 0 && (
-              <View style={styles.badge}><Text style={styles.badgeText}>{cart.length}</Text></View>
+            {/* FIXED: 'cart' ki jagah 'cartItems' check kiya hai */}
+            {cartItems?.length > 0 && (
+              <View style={styles.badge}><Text style={styles.badgeText}>{cartItems.length}</Text></View>
             )}
           </TouchableOpacity>
         </View>
@@ -97,19 +105,28 @@ export default function HomeScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 30}}>
         
-        <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.bannerArea}>
-          {banners.length > 0 ? (
-            banners.map((b) => (
-              <View key={b.id} style={styles.bannerCard}>
-                <Image source={{ uri: b.image || b.imageUrl }} style={styles.imgFull} />
+        <View style={styles.bannerArea}>
+          <ScrollView 
+            horizontal 
+            pagingEnabled 
+            showsHorizontalScrollIndicator={false}
+          >
+            {banners.length > 0 ? (
+              banners.map((b) => (
+                <View key={b.id} style={styles.bannerCard}>
+                  <Image 
+                    source={{ uri: b.imageUrl || b.image }} 
+                    style={styles.imgFull} 
+                  />
+                </View>
+              ))
+            ) : (
+              <View style={styles.defaultBanner}>
+                <Text style={styles.defaultBannerText}>3 MAHINE KI KAAM KI ZIMMEDARI 🛠️</Text>
               </View>
-            ))
-          ) : (
-            <View style={styles.defaultBanner}>
-              <Text style={styles.defaultBannerText}>3 MAHINE KI KAAM KI ZIMMEDARI 🛠️</Text>
-            </View>
-          )}
-        </ScrollView>
+            )}
+          </ScrollView>
+        </View>
 
         <TouchableOpacity style={styles.emergencyBtn} onPress={() => Linking.openURL('tel:+918409372138')}>
           <Text style={styles.emergencyText}>📞 Emergency Repair: Call Now</Text>
@@ -159,9 +176,9 @@ const styles = StyleSheet.create({
   badgeText: { color: '#FFF', fontSize: 11, fontWeight: 'bold' },
   searchBar: { flexDirection: 'row', backgroundColor: '#FFF', borderRadius: 15, paddingHorizontal: 15, paddingVertical: 10, marginTop: 20, alignItems: 'center', elevation: 5 },
   searchInput: { flex: 1, height: 40, color: '#1E293B' },
-  bannerArea: { marginTop: 20 },
-  bannerCard: { width: width - 40, height: 180, marginHorizontal: 20, borderRadius: 20, overflow: 'hidden' },
-  imgFull: { width: '100%', height: '100%', resizeMode: 'cover' },
+  bannerArea: { marginTop: 10, height: 180 }, 
+  bannerCard: { width: width, height: 180, justifyContent: 'center', alignItems: 'center' },
+  imgFull: { width: width - 40, height: '100%', borderRadius: 20, resizeMode: 'cover' },
   defaultBanner: { width: width - 40, height: 150, marginHorizontal: 20, backgroundColor: '#BAE6FD', borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   defaultBannerText: { color: '#002D62', fontWeight: 'bold', fontSize: 16 },
   emergencyBtn: { backgroundColor: '#D4AF37', margin: 20, padding: 16, borderRadius: 15, alignItems: 'center', elevation: 4 },
