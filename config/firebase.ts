@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, initializeFirestore } from "firebase/firestore"; // initializeFirestore add kiya
+import { getFirestore, initializeFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage"; 
 import { 
   getAuth, 
@@ -10,7 +10,6 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
-// Aapka original config (Makkhan jaisa hai)
 const firebaseConfig = {
   apiKey: "AIzaSyAk0HvWSO7rhaWWJfabnS7mm1XCiQ6E-0M",
   authDomain: "spcproject-c45b4-5c782.firebaseapp.com",
@@ -20,31 +19,31 @@ const firebaseConfig = {
   appId: "1:240621722636:android:f04a79a3f431d93be62229" 
 };
 
-// 1. Firebase App Initialization
+// 1. App Initialization
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// 2. Auth setup with Persistence
+// 2. Auth setup (Strict checks for Web vs Native)
 let auth;
 if (Platform.OS === 'web') {
   auth = getAuth(app);
 } else {
-  try {
-    auth = getAuth(app);
-  } catch (e) {
+  // Mobile par persistence ke liye
+  auth = getAuth(app);
+  if (!auth.currentUser) {
     auth = initializeAuth(app, {
       persistence: getReactNativePersistence(AsyncStorage),
     });
   }
 }
 
-// 3. Firestore Initialization (Extra power ke sath)
-// Maine yahan long polling enable ki hai taki connection stable rahe
+// 3. Firestore (Best configuration for Web/Mobile)
+// 'experimentalForceLongPolling' use kiya hai jo Web 404/Connection errors ko rokta hai
 const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
+  experimentalForceLongPolling: true,
+  useFetchStreams: false, 
 });
 
-// 4. Storage Initialization
+// 4. Storage
 const storage = getStorage(app); 
 
-// Sabhi ko export karna
 export { auth, db, storage, app };

@@ -1,153 +1,217 @@
 // @ts-nocheck
+import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView, Platform,
-  ScrollView,
-  StyleSheet, Text,
-  TextInput,
-  TouchableOpacity,
-  View
+  ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Platform,
+  ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View
 } from 'react-native';
-
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../../config/firebase'; // Path check kar lein apne folder structure ke hisaab se
+import { auth, db } from '../../config/firebase';
 import { useCart } from '../../context/CartContext';
 
 export default function CartScreen() {
-  const { cartItems = [], clearCart, removeFromCart } = useCart(); 
+  const { cartItems = [], clearCart, removeFromCart } = useCart();
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('new'); // 'new' or 'history'
+  const [myOrders, setMyOrders] = useState([]);
   const router = useRouter();
 
-  // Price calculation with safety check
-  const total = (cartItems || []).reduce((sum, item) => sum + Number(item.price || 0), 0);
+  const total = cartItems.reduce((sum, item) => sum + Number(item.price || 0), 0);
+
+  // Fetch Orders Logic
+  useEffect(() => {
+    const user = auth?.currentUser;
+    if (!user) return;
+
+    const q = query(
+      collection(db, "orders"), // Make sure collection name is correct
+      where("userId", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMyOrders(ordersData);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const confirmBooking = async () => {
     const user = auth?.currentUser;
-    
-    // 1. Auth Check
     if (!user) {
-      Alert.alert("Login Required", "Booking confirm karne ke liye login karein.", [
-        { text: "Baad mein", style: "cancel" },
-        { text: "Login", onPress: () => router.push('/auth') } 
+      Alert.alert("SPC Patna", "Booking ke liye login zaroori hai.", [
+        { text: "Login Karein", onPress: () => router.push('/profile') }
       ]);
       return;
     }
 
-    // 2. Validation
-    if (!cartItems || cartItems.length === 0) {
-      return Alert.alert("Cart Khali Hai", "Pehle koi service select karein.");
-    }
-    if (!address.trim() || phone.length < 10) {
-      return Alert.alert("Details Missing", "Kripya sahi Address aur 10-digit Phone No. bhariye.");
-    }
+    if (cartItems.length === 0) return Alert.alert("Cart Khali Hai", "Pehle koi service select karein.");
+    if (!address.trim() || phone.length < 10) return Alert.alert("Details Bhariye", "Address aur 10-digit phone number zaroori hai.");
 
     setLoading(true);
     try {
-      // 3. Firestore Order Submission
       await addDoc(collection(db, "orders"), {
         userId: user.uid,
-        userName: user.displayName || 'SPC User',
-        userEmail: user.email,
-        items: cartItems.map((item) => ({ 
-          id: item.id, 
-          name: item.name, 
-          price: Number(item.price) 
-        })),
+        userName: user.displayName || user.email?.split('@')[0],
+        items: cartItems.map((item) => ({ id: item.id, name: item.name, price: Number(item.price) })),
         totalAmount: total,
         address: address.trim(),
         phone: phone.trim(),
-        status: 'Pending',
+        status: 'New Order', // Consistent with Checkout
         createdAt: serverTimestamp(),
       });
 
-      Alert.alert("Success! 🎉", "SPC Patna ko aapki booking mil gayi! Hum jald hi call karenge.");
-      clearCart(); 
-      router.replace('/(tabs)'); // Order ke baad home par bhejo
-    } catch (e) { 
-      console.error(e);
-      Alert.alert("Error", "Server se connection nahi ho paya. Internet check karein."); 
+      Alert.alert("Success! 🎉", "Aapki booking mil gayi hai. SPC Technician jald hi contact karenge.");
+      clearCart();
+      setActiveTab('history');
+    } catch (e) {
+      Alert.alert("Error", "Booking confirm nahi ho saki.");
+    } finally {
+      setLoading(false);
     }
-    finally { setLoading(false); }
+  };
+
+  const renderTracker = (status) => {
+    // UPDATED: Added 'New Order' and 'Accepted' to levels
+    const levels = ['New Order', 'Accepted', 'Assigned', 'Completed'];
+    
+    // Normalize status to match levels (Handle Pending as New Order)
+    let currentStatus = status === 'Pending' ? 'New Order' : status;
+    const currentIndex = levels.indexOf(currentStatus);
+    
+    return (
+      <View style={styles.trackerContainer}>
+        {levels.map((lvl, index) => (
+          <View key={lvl} style={styles.stepWrapper}>
+            <View style={[styles.dot, index <= currentIndex && styles.activeDot]} />
+            <Text style={[styles.stepText, index <= currentIndex && styles.activeStepText]}>
+              {lvl === 'New Order' ? 'Booked' : lvl}
+            </Text>
+            {index < levels.length - 1 && (
+              <View style={[styles.line, index < currentIndex && styles.activeLine]} />
+            )}
+          </View>
+        ))}
+      </View>
+    );
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-      style={styles.container}
-    >
-      <Stack.Screen options={{ title: 'My Booking Cart', headerShown: true }} />
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+      <Stack.Screen options={{ 
+        title: 'SPC Bookings', 
+        headerShown: true,
+        headerStyle: { backgroundColor: '#001529' },
+        headerTintColor: '#D4AF37'
+      }} />
       
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.sectionTitle}>Selected Services ({(cartItems || []).length})</Text>
-        
-        {(!cartItems || cartItems.length === 0) ? (
-          <View style={styles.emptyBox}>
-            <Text style={{fontSize: 50}}>🛒</Text>
-            <Text style={styles.emptyText}>Aapka cart khali hai.</Text>
-            <TouchableOpacity style={styles.goBtn} onPress={() => router.push('/(tabs)')}>
-              <Text style={styles.goBtnText}>Browse Services</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <>
-            {cartItems.map((item, index) => (
-              <View key={item.id || index} style={styles.itemCard}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <Text style={styles.itemPrice}>₹{item.price}</Text>
-                </View>
-                <TouchableOpacity onPress={() => removeFromCart(item.id)} style={styles.removeBtn}>
-                  <Text style={styles.removeText}>Remove</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
+      {/* Tab Switcher */}
+      <View style={styles.tabHeader}>
+        <TouchableOpacity onPress={() => setActiveTab('new')} style={[styles.tab, activeTab === 'new' && styles.activeTabBorder]}>
+          <Ionicons name="cart" size={18} color={activeTab === 'new' ? '#D4AF37' : '#94A3B8'} />
+          <Text style={[styles.tabText, activeTab === 'new' && styles.activeTabText]}>New Order</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setActiveTab('history')} style={[styles.tab, activeTab === 'history' && styles.activeTabBorder]}>
+          <Ionicons name="time" size={18} color={activeTab === 'history' ? '#D4AF37' : '#94A3B8'} />
+          <Text style={[styles.tabText, activeTab === 'history' && styles.activeTabText]}>Track Status</Text>
+        </TouchableOpacity>
+      </View>
 
-            <View style={styles.footerSection}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {activeTab === 'new' ? (
+          cartItems.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="basket-outline" size={80} color="#CBD5E1" />
+              <Text style={styles.emptyTxt}>Aapne koi service select nahi ki hai.</Text>
+              <TouchableOpacity style={styles.goHomeBtn} onPress={() => router.push('/')}>
+                <Text style={{color: '#FFF', fontWeight: 'bold'}}>Services Dekhein</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.sectionTitle}>Selected Services</Text>
+              {cartItems.map(item => (
+                <View key={item.id} style={styles.itemCard}>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                    <Text style={styles.itemPrice}>₹{item.price}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => removeFromCart(item.id)} style={styles.removeBtn}>
+                    <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
               <View style={styles.formCard}>
-                <Text style={styles.formLabel}>Service Address (Patna)</Text>
+                <Text style={styles.inputLabel}>DELIVERY ADDRESS (PATNA REGION)</Text>
                 <TextInput 
                   style={styles.input} 
-                  placeholder="Street, Area, Landmark..." 
+                  placeholder="Street, Landmark, Area..." 
+                  placeholderTextColor="#94A3B8"
                   onChangeText={setAddress} 
-                  value={address} 
+                  value={address}
+                  multiline
                 />
-                
-                <Text style={styles.formLabel}>WhatsApp Number</Text>
+                <Text style={styles.inputLabel}>CONTACT NUMBER</Text>
                 <TextInput 
                   style={styles.input} 
+                  placeholder="10 Digit Mobile Number" 
+                  placeholderTextColor="#94A3B8"
                   keyboardType="numeric" 
                   maxLength={10} 
-                  placeholder="10 digit number"
                   onChangeText={setPhone} 
                   value={phone} 
                 />
-              </View>
+                
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Total Payable:</Text>
+                  <Text style={styles.totalPrice}>₹{total}</Text>
+                </View>
 
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Grand Total:</Text>
-                <Text style={styles.totalValue}>₹{total}</Text>
+                <TouchableOpacity style={styles.bookBtn} onPress={confirmBooking} disabled={loading}>
+                  {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.bookBtnText}>CONFIRM BOOKING</Text>}
+                </TouchableOpacity>
               </View>
-
-              <TouchableOpacity 
-                style={[styles.bookBtn, loading && { opacity: 0.7 }]} 
-                onPress={confirmBooking} 
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#FFF" />
-                ) : (
-                  <Text style={styles.bookBtnText}>CONFIRM ORDER</Text>
-                )}
-              </TouchableOpacity>
-              
-              <Text style={styles.infoText}>* Cash on Service (Payment kaam ke baad)</Text>
             </View>
-          </>
+          )
+        ) : (
+          myOrders.length === 0 ? (
+            <View style={styles.emptyContainer}><Text style={styles.emptyTxt}>Abhi tak koi order nahi hai.</Text></View>
+          ) : (
+            myOrders.map(order => (
+              <View key={order.id} style={styles.orderCard}>
+                <View style={styles.orderHeader}>
+                  <View>
+                    <Text style={styles.orderID}>ID: #{order.id.slice(0,6).toUpperCase()}</Text>
+                    <Text style={styles.orderDate}>{order.createdAt?.toDate().toLocaleDateString()}</Text>
+                  </View>
+                  <View style={{alignItems: 'flex-end'}}>
+                     <Text style={styles.orderTotal}>₹{order.totalPayable || order.totalAmount}</Text>
+                     <Text style={[styles.statusBadge, {color: order.status === 'Completed' ? '#059669' : '#D4AF37'}]}>{order.status}</Text>
+                  </View>
+                </View>
+                
+                {renderTracker(order.status)}
+
+                {order.technicianName && (
+                  <View style={styles.techBox}>
+                    <View style={{flex: 1}}>
+                      <Text style={styles.techName}>Technician: {order.technicianName}</Text>
+                      <Text style={styles.techSub}>Arriving for service</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${order.technicianPhone}`)} style={styles.callBtn}>
+                      <Ionicons name="call" size={18} color="#FFF" />
+                      <Text style={{color:'#FFF', fontWeight: 'bold', marginLeft: 5}}>Call</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ))
+          )
         )}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -155,26 +219,45 @@ export default function CartScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F7F9' },
-  scrollContent: { padding: 20, paddingBottom: 50 },
-  sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#002D62', marginBottom: 15 },
-  itemCard: { backgroundColor: '#FFF', padding: 15, borderRadius: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, elevation: 2 },
-  itemName: { fontSize: 16, fontWeight: '600', color: '#333' },
-  itemPrice: { color: '#002D62', fontWeight: 'bold', fontSize: 15, marginTop: 4 },
-  removeBtn: { padding: 8, backgroundColor: '#FFF0F0', borderRadius: 8 },
-  removeText: { color: '#FF4444', fontWeight: 'bold', fontSize: 12 },
-  emptyBox: { marginTop: 80, alignItems: 'center' },
-  emptyText: { color: '#64748B', fontSize: 16, marginBottom: 20, marginTop: 10 },
-  goBtn: { backgroundColor: '#002D62', paddingHorizontal: 30, paddingVertical: 12, borderRadius: 10 },
-  goBtnText: { color: '#FFF', fontWeight: 'bold' },
-  footerSection: { marginTop: 10 },
-  formCard: { backgroundColor: '#FFF', padding: 18, borderRadius: 15, marginBottom: 20, elevation: 2 },
-  formLabel: { fontSize: 13, fontWeight: 'bold', color: '#002D62', marginBottom: 8 },
-  input: { borderBottomWidth: 1.5, borderColor: '#F1F5F9', paddingVertical: 10, marginBottom: 20, color: '#1E293B' },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 25, alignItems: 'center' },
-  totalLabel: { fontSize: 18, color: '#64748B' },
-  totalValue: { fontSize: 28, fontWeight: 'bold', color: '#002D62' },
-  bookBtn: { backgroundColor: '#002D62', padding: 18, borderRadius: 15, alignItems: 'center', elevation: 5 },
-  bookBtnText: { color: '#FFF', fontWeight: 'bold', fontSize: 18 },
-  infoText: { textAlign: 'center', marginTop: 15, color: '#94A3B8', fontSize: 12 }
+  container: { flex: 1, backgroundColor: '#001529' }, // Dark background like theme
+  tabHeader: { flexDirection: 'row', backgroundColor: '#002140', borderBottomWidth: 1, borderBottomColor: '#003366' },
+  tab: { flex: 1, padding: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  activeTabBorder: { borderBottomWidth: 3, borderBottomColor: '#D4AF37' },
+  tabText: { color: '#94A3B8', fontWeight: 'bold', fontSize: 14 },
+  activeTabText: { color: '#D4AF37' },
+  scrollContent: { padding: 16, paddingBottom: 40 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#D4AF37', marginBottom: 12 },
+  itemCard: { backgroundColor: '#002140', padding: 15, borderRadius: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#003366' },
+  itemName: { fontSize: 15, fontWeight: 'bold', color: '#FFF' },
+  itemPrice: { color: '#D4AF37', fontWeight: 'bold', marginTop: 2 },
+  removeBtn: { padding: 8 },
+  formCard: { backgroundColor: '#002140', padding: 20, borderRadius: 20, marginTop: 10, borderWidth: 1, borderColor: '#003366' },
+  inputLabel: { fontSize: 11, fontWeight: 'bold', color: '#D4AF37', marginBottom: 6 },
+  input: { backgroundColor: '#001529', borderRadius: 12, padding: 12, marginBottom: 15, color: '#FFF', borderWidth: 1, borderColor: '#003366' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 15, borderTopWidth: 1, borderTopColor: '#003366' },
+  totalLabel: { fontSize: 16, color: '#94A3B8' },
+  totalPrice: { fontSize: 20, fontWeight: 'bold', color: '#D4AF37' },
+  bookBtn: { backgroundColor: '#D4AF37', padding: 18, borderRadius: 15, alignItems: 'center' },
+  bookBtnText: { color: '#001529', fontWeight: 'bold', fontSize: 16 },
+  emptyContainer: { alignItems: 'center', marginTop: 80 },
+  emptyTxt: { color: '#94A3B8', marginTop: 15, textAlign: 'center' },
+  goHomeBtn: { backgroundColor: '#D4AF37', padding: 12, borderRadius: 10, marginTop: 20 },
+  orderCard: { backgroundColor: '#002140', padding: 18, borderRadius: 20, marginBottom: 15, borderWidth: 1, borderColor: '#003366' },
+  orderHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  orderID: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
+  orderDate: { color: '#94A3B8', fontSize: 12 },
+  orderTotal: { fontSize: 18, fontWeight: 'bold', color: '#D4AF37' },
+  statusBadge: { fontSize: 12, fontWeight: 'bold', marginTop: 4 },
+  trackerContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15, marginTop: 10 },
+  stepWrapper: { alignItems: 'center', flex: 1 },
+  dot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#003366', zIndex: 2 },
+  activeDot: { backgroundColor: '#D4AF37', borderWidth: 2, borderColor: '#FFF' },
+  line: { position: 'absolute', top: 5, left: '50%', width: '100%', height: 2, backgroundColor: '#003366', zIndex: 1 },
+  activeLine: { backgroundColor: '#D4AF37' },
+  stepText: { fontSize: 9, marginTop: 8, color: '#94A3B8', textAlign: 'center' },
+  activeStepText: { color: '#D4AF37', fontWeight: 'bold' },
+  techBox: { marginTop: 15, padding: 12, backgroundColor: '#002d54', borderRadius: 12, flexDirection: 'row', alignItems: 'center' },
+  techName: { fontWeight: 'bold', color: '#FFF', fontSize: 14 },
+  techSub: { fontSize: 11, color: '#94A3B8' },
+  callBtn: { backgroundColor: '#22C55E', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, flexDirection: 'row', alignItems: 'center' }
 });
