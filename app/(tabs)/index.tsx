@@ -196,7 +196,7 @@ export default function HomeScreen() {
             <TouchableOpacity onPress={() => Linking.openURL('https://instagram.com/serviceprovidercentre')}>
               <Ionicons name="logo-instagram" size={35} color="#E1306C" />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => Linking.openURL('https://facebook.com/serviceprovidercenter')}>
+            <TouchableOpacity onPress={() => Linking.openURL('https://www.facebook.com/share/1DzMopBFir/')}>
               <Ionicons name="logo-facebook" size={35} color="#1877F2" />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => Linking.openURL('https://whatsapp.com/channel/0029VbBqtdYCXC3I0z25tn2f')}>
