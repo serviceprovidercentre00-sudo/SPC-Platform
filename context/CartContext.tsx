@@ -1,46 +1,88 @@
 // @ts-nocheck
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState } from "react";
 
-// 1. Context banaiye
 const CartContext = createContext<any>(null);
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
-  // Yahan variable ka naam 'cartItems' rakha hai taaki CartScreen ise pehchan sake
-  const [cartItems, setCartItems] = useState<any[]>([]); 
+  const [cartItems, setCartItems] = useState<any[]>([]);
 
-  // Service ko cart mein add karne ke liye
+  const safeParsePrice = (val: any) => {
+    if (val === undefined || val === null || val === "") return 0;
+    if (typeof val === "number") return val;
+    const cleaned = String(val)
+      .replace(/,/g, "")
+      .replace(/[^0-9.]/g, "");
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // Naya calculation logic
+  const calculateBill = (
+    items: any[],
+    includeServiceCharge = true,
+    baseServicePrice = 0,
+  ) => {
+    const partsTotal = items.reduce(
+      (sum, item) => sum + safeParsePrice(item.price),
+      0,
+    );
+    const serviceTotal = includeServiceCharge
+      ? safeParsePrice(baseServicePrice)
+      : 0;
+
+    const subTotal = partsTotal + serviceTotal;
+
+    // Fees calculation
+    const platformFee = subTotal > 0 ? 20 : 0; // Fixed Fee
+    const taxAmount = Math.round(subTotal * 0.1); // 10% Professional Tax
+    const grandTotal = subTotal + platformFee + taxAmount;
+
+    return {
+      partsTotal,
+      serviceTotal,
+      subTotal,
+      platformFee,
+      taxAmount,
+      grandTotal,
+    };
+  };
+
   const addToCart = (service: any) => {
     setCartItems((prevItems) => {
-      // Duplicate check: Agar service pehle se hai toh dobara add na karein
-      const exists = prevItems.find(item => item.id === service.id);
+      const exists = prevItems.find((item) => item.id === service.id);
       if (exists) return prevItems;
-      return [...prevItems, service];
+      return [
+        ...prevItems,
+        { ...service, price: safeParsePrice(service.price) },
+      ];
     });
-    console.log("Service added to Context:", service.name);
   };
 
-  // Cart se item hatane ke liye
   const removeFromCart = (id: string) => {
-    setCartItems((prevItems) => prevItems.filter(item => item.id !== id));
+    setCartItems((prevItems) => prevItems.filter((item) => item.id !== id));
   };
 
-  // Cart khali karne ke liye
   const clearCart = () => setCartItems([]);
 
   return (
-    // Value mein 'cartItems' hi pass karein
-    <CartContext.Provider value={{ cartItems, addToCart, removeFromCart, clearCart }}>
+    <CartContext.Provider
+      value={{
+        cartItems,
+        addToCart,
+        removeFromCart,
+        clearCart,
+        safeParsePrice,
+        calculateBill,
+      }}
+    >
       {children}
     </CartContext.Provider>
   );
 }
 
-// 2. Custom hook
 export const useCart = () => {
   const context = useContext(CartContext);
-  if (!context) {
-    console.error("useCart must be used within a CartProvider");
-    return { cartItems: [], addToCart: () => {}, removeFromCart: () => {}, clearCart: () => {} };
-  }
+  if (!context)
+    return { cartItems: [], addToCart: () => {}, calculateBill: () => ({}) };
   return context;
 };

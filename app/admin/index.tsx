@@ -1,35 +1,41 @@
 // @ts-nocheck
-import { Ionicons } from '@expo/vector-icons';
-import { Stack, useRouter } from 'expo-router';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import React, { useEffect, useState } from 'react';
+import { Ionicons } from "@expo/vector-icons";
+import { Stack, useRouter } from "expo-router";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
   Platform,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
-} from 'react-native';
-import { auth } from '../../config/firebase';
+  View,
+} from "react-native";
+import { auth } from "../../config/firebase";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
+
+// COLORS - Blue and Gold Premium Theme
+const COLORS = {
+  primary: "#001529", // Deep Navy
+  cardBg: "#002140", // Lighter Navy
+  gold: "#D4AF37", // Premium Gold
+  white: "#FFFFFF",
+  danger: "#922B21", // Soft Red
+};
 
 export default function AdminMenu() {
   const router = useRouter();
   const [isAuth, setIsAuth] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // ⚠️ Aapki Protected UID (Firebase Console se check kar lein)
-  // app/admin/index.tsx mein ye badlav karein
+  // ⚠️ SECURITY: Protected Admin UID
+  const ADMIN_UID = "sIlwYSIr89To94lAnS12dXtCadb2";
 
-// Purani ID: "PSvi6ahqZ2eyPRbgGx5GoyndCch1" <-- ISKO HATAYEIN
-const ADMIN_UID = "sIlwYSIr89To94lAnS12dXtCadb2"; // <-- NAYI ID YAHAN DALEIN
-
-  // 🔥 Professional Auth Guard
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && user.uid === ADMIN_UID) {
@@ -38,47 +44,90 @@ const ADMIN_UID = "sIlwYSIr89To94lAnS12dXtCadb2"; // <-- NAYI ID YAHAN DALEIN
       } else {
         setIsAuth(false);
         setLoading(false);
-        // Chota delay taaki navigation conflict na ho
-        const timer = setTimeout(() => {
-          router.replace('/admin/login');
+        setTimeout(() => {
+          router.replace("/admin/login");
         }, 500);
-        return () => clearTimeout(timer);
       }
     });
-
-    return () => unsubscribe(); // Cleanup listener
+    return () => unsubscribe();
   }, [router]);
 
+  // MENU ITEMS - All 8 Management Portals
   const menuItems = [
-    { id: 1, name: 'Orders', icon: 'cart-outline', path: '/admin/orders', color: '#D4AF37' },
-    { id: 2, name: 'Services', icon: 'construct-outline', path: '/admin/services', color: '#28A745' },
-    { id: 3, name: 'Banners', icon: 'images-outline', path: '/admin/banners', color: '#007BFF' },
-    { id: 4, name: 'Workers', icon: 'people-outline', path: '/admin/workers', color: '#6C757D' },
-    { id: 5, name: 'Users', icon: 'person-circle-outline', path: '/admin/users', color: '#17A2B8' },
-    { id: 6, name: 'Revenue', icon: 'trending-up-outline', path: '/admin/revenue', color: '#E83E8C' },
-    { id: 7, name: 'Settings', icon: 'settings-outline', path: '/admin/settings', color: '#5D6D7E' },
+    {
+      id: 1,
+      name: "Orders",
+      icon: "cart-outline",
+      path: "/admin/orders",
+      color: COLORS.gold,
+    },
+    {
+      id: 2,
+      name: "Services",
+      icon: "construct-outline",
+      path: "/admin/services",
+      color: "#28A745",
+    },
+    {
+      id: 3,
+      name: "Banners",
+      icon: "images-outline",
+      path: "/admin/banners",
+      color: "#007BFF",
+    },
+    {
+      id: 4,
+      name: "Workers",
+      icon: "people-outline",
+      path: "/admin/workers",
+      color: "#FF8C00",
+    },
+    {
+      id: 5,
+      name: "Wholesalers",
+      icon: "business-outline",
+      path: "/admin/wholesalers",
+      color: "#9B59B6",
+    },
+    {
+      id: 6,
+      name: "User Logs",
+      icon: "person-outline",
+      path: "/admin/users",
+      color: "#17A2B8",
+    },
+    {
+      id: 7,
+      name: "Revenue",
+      icon: "bar-chart-outline",
+      path: "/admin/revenue",
+      color: "#E83E8C",
+    },
+    {
+      id: 8,
+      name: "Settings",
+      icon: "settings-outline",
+      path: "/admin/settings",
+      color: "#5D6D7E",
+    },
   ];
 
   const handleLogout = async () => {
-    const logoutProcess = async () => {
+    const logoutAction = async () => {
       try {
         await signOut(auth);
-        if (Platform.OS === 'web') {
-          window.location.href = '/admin/login';
-        } else {
-          router.replace('/admin/login');
-        }
+        router.replace("/admin/login");
       } catch (error) {
-        console.error(error);
+        console.error("Logout Error:", error);
       }
     };
 
-    if (Platform.OS === 'web') {
-      if (confirm("System lock karein?")) logoutProcess();
+    if (Platform.OS === "web") {
+      if (confirm("System lock karein?")) logoutAction();
     } else {
-      Alert.alert("Security Check", "Kya aap system lock karna chahte hain?", [
+      Alert.alert("Security Check", "Lock Command Center?", [
         { text: "Cancel", style: "cancel" },
-        { text: "Logout", onPress: logoutProcess, style: "destructive" }
+        { text: "Logout", onPress: logoutAction, style: "destructive" },
       ]);
     }
   };
@@ -86,40 +135,43 @@ const ADMIN_UID = "sIlwYSIr89To94lAnS12dXtCadb2"; // <-- NAYI ID YAHAN DALEIN
   if (loading) {
     return (
       <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#D4AF37" />
-        <Text style={{color:'#D4AF37', marginTop:10, letterSpacing: 1}}>AUTHENTICATING...</Text>
+        <ActivityIndicator size="large" color={COLORS.gold} />
+        <Text style={styles.loaderText}>SECURE AUTHENTICATION...</Text>
       </View>
     );
   }
 
-  // Agar unauthorized hai toh kuch render mat karo (Guard)
   if (!isAuth) return null;
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ 
-        title: 'SPC COMMAND CENTER', 
-        headerStyle: {backgroundColor: '#001529'},
-        headerTintColor: '#D4AF37',
-        headerTitleStyle: { fontWeight: '900', fontSize: 16 },
-        headerLeft: () => null,
-      }} />
+      <StatusBar barStyle="light-content" />
+      <Stack.Screen options={{ headerShown: false }} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.headerSection}>
           <Text style={styles.welcomeText}>System Administrator</Text>
           <Text style={styles.subText}>PATNA OPERATIONS CONTROL v2.0</Text>
         </View>
 
+        {/* Dashboard Grid */}
         <View style={styles.gridContainer}>
           {menuItems.map((item) => (
-            <TouchableOpacity 
-              key={item.id} 
-              style={styles.card} 
+            <TouchableOpacity
+              key={item.id}
+              style={styles.card}
               onPress={() => router.push(item.path)}
               activeOpacity={0.7}
             >
-              <View style={[styles.iconCircle, { backgroundColor: item.color + '15' }]}>
+              <View
+                style={[
+                  styles.iconCircle,
+                  { backgroundColor: item.color + "15" },
+                ]}
+              >
                 <Ionicons name={item.icon} size={28} color={item.color} />
               </View>
               <Text style={styles.cardLabel}>{item.name}</Text>
@@ -127,56 +179,97 @@ const ADMIN_UID = "sIlwYSIr89To94lAnS12dXtCadb2"; // <-- NAYI ID YAHAN DALEIN
           ))}
         </View>
 
-        <TouchableOpacity 
-          style={styles.logoutBtn} 
-          onPress={handleLogout}
-        >
-          <Ionicons name="lock-closed-outline" size={20} color="#fff" />
+        {/* System Lock Button */}
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          <Ionicons name="lock-closed" size={20} color="#fff" />
           <Text style={styles.logoutText}>CLOSE COMMAND CENTER</Text>
         </TouchableOpacity>
 
-        <Text style={styles.footerText}>Securely Encrypted for SPC Patna</Text>
+        <Text style={styles.footerText}>© 2026 SPC Platform • Patna Hub</Text>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#001529' },
-  loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#001529' },
-  scrollContent: { padding: 20 },
-  headerSection: { marginBottom: 25, marginTop: 10 },
-  welcomeText: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
-  subText: { color: '#D4AF37', fontSize: 12, marginTop: 5, opacity: 0.8, letterSpacing: 2 },
-  gridContainer: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  card: { 
-    backgroundColor: '#002140', 
-    width: (width - 60) / 2, 
-    height: 130, 
-    borderRadius: 20, 
+  container: { flex: 1, backgroundColor: COLORS.primary },
+  loader: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.primary,
+  },
+  loaderText: {
+    color: COLORS.gold,
+    marginTop: 15,
+    letterSpacing: 2,
+    fontSize: 12,
+  },
+  scrollContent: { padding: 25 },
+  headerSection: { marginBottom: 35 },
+  welcomeText: { color: COLORS.white, fontSize: 28, fontWeight: "bold" },
+  subText: {
+    color: COLORS.gold,
+    fontSize: 12,
+    letterSpacing: 1.5,
+    fontWeight: "700",
+  },
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  card: {
+    backgroundColor: COLORS.cardBg,
+    width: Platform.OS === "web" ? "23%" : (width - 65) / 2, // Web par 4 columns, Mobile par 2
+    height: 140,
+    borderRadius: 20,
     padding: 15,
     marginBottom: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5
-  },
-  iconCircle: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  cardLabel: { color: '#fff', fontSize: 14, fontWeight: '600', letterSpacing: 0.5 },
-  logoutBtn: { 
-    flexDirection: 'row',
-    backgroundColor: '#922B21', 
-    padding: 18, 
-    borderRadius: 15, 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    marginTop: 20,
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#C0392B'
+    borderColor: "#112240",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
   },
-  logoutText: { color: '#fff', fontWeight: 'bold', marginLeft: 10, letterSpacing: 1 },
-  footerText: { textAlign: 'center', color: '#2C3E50', marginTop: 30, fontSize: 10, letterSpacing: 2, fontWeight: 'bold' }
+  iconCircle: {
+    width: 55,
+    height: 55,
+    borderRadius: 28,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  cardLabel: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  logoutBtn: {
+    flexDirection: "row",
+    backgroundColor: COLORS.danger,
+    padding: 18,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  logoutText: {
+    color: "#fff",
+    fontWeight: "bold",
+    marginLeft: 10,
+    letterSpacing: 1,
+  },
+  footerText: {
+    textAlign: "center",
+    color: "#1B2C3D",
+    marginTop: 40,
+    fontSize: 10,
+    fontWeight: "bold",
+    letterSpacing: 1,
+  },
 });
