@@ -1,13 +1,14 @@
-import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-  ScrollView,
-  StyleSheet,
+  View,
   Text,
+  StyleSheet,
   TextInput,
   TouchableOpacity,
-  View
+  FlatList,
+  ScrollView,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 const COLORS = {
   primaryBlue: "#003366",

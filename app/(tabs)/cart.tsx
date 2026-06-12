@@ -1,11 +1,11 @@
 // @ts-nocheck
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
+import * as Location from "expo-location";
+import { Stack } from "expo-router";
 import {
   addDoc,
   collection,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
   where,
@@ -15,13 +15,13 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Platform,
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { auth, db } from "../../config/firebase";
 import { useCart } from "../../context/CartContext";
@@ -33,122 +33,110 @@ export default function CartScreen() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("new");
   const [myOrders, setMyOrders] = useState([]);
-  const router = useRouter();
+  const [isFetching, setIsFetching] = useState(true);
 
-  // Constants
   const PLATFORM_FEE = 49;
   const GST_RATE = 0.18;
 
-  // --- BRAHMASTRA PRICE PARSER ---
-  // Ye function kisi bhi kachre (comma, symbol, undefined) ko saaf karke number banayega
-  const parsePrice = (val) => {
-    if (val === undefined || val === null || val === "") return 0;
-    if (typeof val === "number") return val;
-
-    // Step 1: Comma (,) ko bilkul hata do
-    // Step 2: Sirf digits aur decimal point rakho
-    const cleaned = String(val)
-      .replace(/,/g, "")
-      .replace(/[^0-9.]/g, "");
-    const num = parseFloat(cleaned);
-
-    // Agar result abhi bhi Number nahi hai (NaN), toh 0 return karo
-    return isNaN(num) ? 0 : num;
-  };
-
-  // --- SAFE CALCULATION LOGIC ---
-  const { subtotal, gstAmount, finalTotal } = useMemo(() => {
-    // 1. Subtotal calculation with safety check
-    const sub = Array.isArray(cartItems)
-      ? cartItems.reduce((sum, item) => sum + parsePrice(item.price), 0)
-      : 0;
-
-    // 2. GST Calculation (Subtotal + Platform Fee par 18%)
-    const gst = Math.round((sub + PLATFORM_FEE) * GST_RATE);
-
-    // 3. Final Amount
-    const final = sub + PLATFORM_FEE + gst;
-
-    return {
-      subtotal: sub,
-      gstAmount: gst,
-      finalTotal: isNaN(final) ? 0 : final,
-    };
-  }, [cartItems]);
-
   useEffect(() => {
     const user = auth?.currentUser;
-    if (!user) return;
-
-    const q = query(
-      collection(db, "orders"),
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc"),
+    if (!user) {
+      setIsFetching(false);
+      return;
+    }
+    const q = query(collection(db, "orders"), where("userId", "==", user.uid));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const orders = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        const sortedOrders = orders.sort(
+          (a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0),
+        );
+        setMyOrders(sortedOrders);
+        setIsFetching(false);
+      },
+      (error) => {
+        console.log("Firebase Error:", error.message);
+        setIsFetching(false);
+      },
     );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ordersData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setMyOrders(ordersData);
-    });
-
     return () => unsubscribe();
   }, []);
 
-  const confirmBooking = async () => {
-    const user = auth?.currentUser;
-    if (!user) {
-      Alert.alert("SPC Patna", "Login zaroori hai.", [
-        { text: "Login", onPress: () => router.push("/profile") },
-      ]);
-      return;
-    }
+  const getStatusStyle = (status) => {
+    const s = status?.toLowerCase() || "";
+    if (s.includes("done") || s.includes("complete"))
+      return { color: "#22C55E", label: "Done" };
+    if (s.includes("accept")) return { color: "#3B82F6", label: "Accepted" };
+    return { color: "#F59E0B", label: "Wait" };
+  };
 
-    if (cartItems.length === 0)
-      return Alert.alert("Cart Khali", "Service select karein.");
-    if (!address.trim() || phone.length < 10)
-      return Alert.alert("Details", "Address aur Phone sahi bhariye.");
+  // --- LOCATION LOGIC ---
+  const handleLocation = async () => {
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted")
+      return Alert.alert("Error", "Permission required");
+    setLoading(true);
+    try {
+      let loc = await Location.getCurrentPositionAsync({});
+      let res = await Location.reverseGeocodeAsync({
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      });
+      if (res.length > 0) {
+        let a = res[0];
+        setAddress(
+          `${a.name || ""}, ${a.street || ""}, ${a.city}, ${a.region}`,
+        );
+      }
+    } catch (e) {
+      Alert.alert("Error", "Location not found");
+    }
+    setLoading(false);
+  };
+
+  const parsePrice = (v) =>
+    parseFloat(String(v || 0).replace(/[^0-9.]/g, "")) || 0;
+  const { totalBill } = useMemo(() => {
+    const sub = cartItems.reduce((s, i) => s + parsePrice(i.price), 0);
+    return { totalBill: sub + PLATFORM_FEE + Math.round(sub * GST_RATE) };
+  }, [cartItems]);
+
+  const placeOrder = async () => {
+    const user = auth?.currentUser;
+    if (!user) return Alert.alert("Login", "Please login first");
+    if (!address || phone.length < 10)
+      return Alert.alert("Details", "Fill address & 10-digit phone");
 
     setLoading(true);
     try {
       await addDoc(collection(db, "orders"), {
         userId: user.uid,
-        userName: user.displayName || user.email?.split("@")[0],
-        items: cartItems.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: parsePrice(item.price),
-        })),
-        subtotal,
-        platformFee: PLATFORM_FEE,
-        gstAmount,
-        totalAmount: finalTotal,
-        address: address.trim(),
-        phone: phone.trim(),
-        status: "New Order",
+        userName: user.displayName || "User",
+        items: cartItems, // Cart se items array jayega
+        totalAmount: totalBill,
+        address,
+        phone,
+        status: "Wait",
         createdAt: serverTimestamp(),
       });
-
-      Alert.alert("Success! 🎉", "Booking Confirm Ho Gayi!");
       clearCart();
       setActiveTab("history");
     } catch (e) {
-      Alert.alert("Error", "Server se connect nahi ho paye.");
+      Alert.alert("Error", e.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
+    <KeyboardAvoidingView behavior="padding" style={styles.container}>
       <Stack.Screen
         options={{
-          title: "SPC Bookings",
+          title: "SPC Booking",
           headerStyle: { backgroundColor: "#001529" },
           headerTintColor: "#D4AF37",
         }}
@@ -157,126 +145,174 @@ export default function CartScreen() {
       <View style={styles.tabHeader}>
         <TouchableOpacity
           onPress={() => setActiveTab("new")}
-          style={[styles.tab, activeTab === "new" && styles.activeTabBorder]}
+          style={[styles.tab, activeTab === "new" && styles.activeTab]}
         >
           <Text
-            style={[
-              styles.tabText,
-              activeTab === "new" && styles.activeTabText,
-            ]}
+            style={{
+              color: activeTab === "new" ? "#D4AF37" : "#94A3B8",
+              fontWeight: "bold",
+            }}
           >
-            New Order ({cartItems.length})
+            BOOKING
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => setActiveTab("history")}
-          style={[
-            styles.tab,
-            activeTab === "history" && styles.activeTabBorder,
-          ]}
+          style={[styles.tab, activeTab === "history" && styles.activeTab]}
         >
           <Text
-            style={[
-              styles.tabText,
-              activeTab === "history" && styles.activeTabText,
-            ]}
+            style={{
+              color: activeTab === "history" ? "#D4AF37" : "#94A3B8",
+              fontWeight: "bold",
+            }}
           >
-            My Orders
+            MY HISTORY
           </Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView contentContainerStyle={{ padding: 15 }}>
         {activeTab === "new" ? (
           cartItems.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyTxt}>Cart mein kuch nahi hai.</Text>
-            </View>
+            <Text style={styles.empty}>Empty Cart</Text>
           ) : (
             <View>
-              {cartItems.map((item, idx) => (
-                <View key={`${item.id}-${idx}`} style={styles.itemCard}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.itemName}>{item.name}</Text>
-                    <Text style={styles.itemPrice}>
-                      ₹{parsePrice(item.price).toLocaleString("en-IN")}
-                    </Text>
-                  </View>
-                  <TouchableOpacity onPress={() => removeFromCart(item.id)}>
-                    <Ionicons name="trash" size={20} color="#EF4444" />
-                  </TouchableOpacity>
+              {cartItems.map((item, i) => (
+                <View key={i} style={styles.itemRow}>
+                  <Text style={{ color: "#fff", flex: 1 }}>{item.name}</Text>
+                  <Text style={{ color: "#D4AF37" }}>₹{item.price}</Text>
                 </View>
               ))}
+              <TouchableOpacity onPress={handleLocation} style={styles.locBtn}>
+                <Text style={{ color: "#001529", fontWeight: "bold" }}>
+                  GET LOCATION
+                </Text>
+              </TouchableOpacity>
+              <TextInput
+                style={styles.input}
+                placeholder="Full Address"
+                placeholderTextColor="#64748B"
+                value={address}
+                onChangeText={setAddress}
+                multiline
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Phone Number"
+                placeholderTextColor="#64748B"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="numeric"
+                maxLength={10}
+              />
+              <TouchableOpacity
+                style={styles.mainBtn}
+                onPress={placeOrder}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#000" />
+                ) : (
+                  <Text style={styles.mainBtnText}>
+                    BOOK NOW (₹{totalBill})
+                  </Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          )
+        ) : isFetching ? (
+          <ActivityIndicator
+            size="large"
+            color="#D4AF37"
+            style={{ marginTop: 50 }}
+          />
+        ) : (
+          myOrders.map((order) => {
+            const statusUI = getStatusStyle(order.status);
+            // SERVICE NAME NIKALNE KA LOGIC (Cart ya Direct Service)
+            const displayName =
+              order.serviceName ||
+              (order.items && order.items.length > 0
+                ? order.items[0].name
+                : "Service Request");
 
-              <View style={styles.formCard}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Full Address"
-                  placeholderTextColor="#94A3B8"
-                  onChangeText={setAddress}
-                  value={address}
-                />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Phone"
-                  keyboardType="numeric"
-                  maxLength={10}
-                  onChangeText={setPhone}
-                  value={phone}
-                  placeholderTextColor="#94A3B8"
-                />
-
-                <View style={styles.billBox}>
-                  <View style={styles.billRow}>
-                    <Text style={styles.billLabel}>Items Total</Text>
-                    <Text style={styles.billValue}>
-                      ₹{subtotal.toLocaleString("en-IN")}
-                    </Text>
-                  </View>
-                  <View style={styles.billRow}>
-                    <Text style={styles.billLabel}>Platform Charge</Text>
-                    <Text style={styles.billValue}>₹{PLATFORM_FEE}</Text>
-                  </View>
-                  <View style={styles.billRow}>
-                    <Text style={styles.billLabel}>GST (18%)</Text>
-                    <Text style={styles.billValue}>
-                      ₹{gstAmount.toLocaleString("en-IN")}
-                    </Text>
-                  </View>
-                  <View style={styles.totalRow}>
-                    <Text style={styles.totalLabel}>Total Payable</Text>
-                    <Text style={styles.totalPrice}>
-                      ₹{finalTotal.toLocaleString("en-IN")}
+            return (
+              <View key={order.id} style={styles.orderCard}>
+                <View style={styles.cardHeader}>
+                  <Text style={styles.orderId}>
+                    #{order.id.slice(-6).toUpperCase()}
+                  </Text>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: statusUI.color + "20" },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: statusUI.color,
+                        fontSize: 10,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {statusUI.label.toUpperCase()}
                     </Text>
                   </View>
                 </View>
 
-                <TouchableOpacity
-                  style={styles.bookBtn}
-                  onPress={confirmBooking}
-                  disabled={loading}
+                <View style={styles.divider} />
+
+                {/* YAHA AB SERVICE KA NAAM DIKHEGA */}
+                <Text
+                  style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}
                 >
-                  {loading ? (
-                    <ActivityIndicator color="#001529" />
-                  ) : (
-                    <Text style={styles.bookBtnText}>CONFIRM ORDER</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          )
-        ) : (
-          myOrders.map((order) => (
-            <View key={order.id} style={styles.orderCard}>
-              <View style={styles.orderHeader}>
-                <Text style={styles.orderID}>ID: #{order.id.slice(0, 6)}</Text>
-                <Text style={styles.orderTotal}>
-                  ₹{parsePrice(order.totalAmount).toLocaleString("en-IN")}
+                  {displayName}
                 </Text>
+                <Text
+                  style={{
+                    color: "#D4AF37",
+                    fontWeight: "bold",
+                    fontSize: 18,
+                    marginTop: 5,
+                  }}
+                >
+                  ₹{order.totalAmount}
+                </Text>
+
+                {order.workerDetails ? (
+                  <View style={styles.workerRow}>
+                    <View>
+                      <Text style={{ color: "#fff", fontWeight: "bold" }}>
+                        {order.workerDetails.name}
+                      </Text>
+                      <Text style={{ color: "#64748B", fontSize: 10 }}>
+                        SPC Expert Assigned
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() =>
+                        Linking.openURL(`tel:${order.workerDetails.phone}`)
+                      }
+                      style={styles.callBtn}
+                    >
+                      <Ionicons name="call" size={16} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <Text
+                    style={{
+                      color: "#64748B",
+                      fontSize: 11,
+                      marginTop: 10,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Searching for worker...
+                  </Text>
+                )}
               </View>
-              {/* Status logic can be added here */}
-            </View>
-          ))
+            );
+          })
         )}
       </ScrollView>
     </KeyboardAvoidingView>
@@ -286,78 +322,59 @@ export default function CartScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#001529" },
   tabHeader: { flexDirection: "row", backgroundColor: "#002140" },
-  tab: { flex: 1, padding: 16, alignItems: "center" },
-  activeTabBorder: { borderBottomWidth: 3, borderBottomColor: "#D4AF37" },
-  tabText: { color: "#94A3B8", fontWeight: "bold" },
-  activeTabText: { color: "#D4AF37" },
-  scrollContent: { padding: 16 },
-  itemCard: {
+  tab: { flex: 1, padding: 18, alignItems: "center" },
+  activeTab: { borderBottomWidth: 3, borderBottomColor: "#D4AF37" },
+  itemRow: {
     backgroundColor: "#002140",
-    padding: 15,
-    borderRadius: 12,
-    marginBottom: 10,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  itemName: { color: "#FFF", fontWeight: "bold" },
-  itemPrice: { color: "#D4AF37", marginTop: 4 },
-  formCard: {
-    backgroundColor: "#002140",
-    padding: 20,
-    borderRadius: 15,
-    marginTop: 10,
-  },
-  input: {
-    backgroundColor: "#001529",
-    color: "#FFF",
     padding: 12,
     borderRadius: 10,
-    marginBottom: 10,
-  },
-  billBox: {
-    backgroundColor: "#001529",
-    padding: 15,
-    borderRadius: 12,
-    marginTop: 10,
-  },
-  billRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     marginBottom: 8,
-  },
-  billLabel: { color: "#94A3B8" },
-  billValue: { color: "#FFF" },
-  totalRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: "#334155",
-    paddingTop: 10,
-    marginTop: 5,
   },
-  totalLabel: { color: "#D4AF37", fontWeight: "bold", fontSize: 16 },
-  totalPrice: { color: "#D4AF37", fontWeight: "bold", fontSize: 18 },
-  bookBtn: {
+  input: {
+    backgroundColor: "#002140",
+    color: "#fff",
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#1e293b",
+  },
+  locBtn: {
     backgroundColor: "#D4AF37",
-    padding: 15,
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  mainBtn: {
+    backgroundColor: "#D4AF37",
+    padding: 16,
     borderRadius: 12,
     alignItems: "center",
-    marginTop: 15,
   },
-  bookBtnText: { color: "#001529", fontWeight: "bold", fontSize: 16 },
-  emptyContainer: { alignItems: "center", marginTop: 50 },
-  emptyTxt: { color: "#94A3B8" },
+  mainBtnText: { color: "#001529", fontWeight: "bold" },
   orderCard: {
     backgroundColor: "#002140",
     padding: 15,
     borderRadius: 15,
-    marginBottom: 12,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: "#1e293b",
   },
-  orderHeader: {
+  cardHeader: { flexDirection: "row", justifyContent: "space-between" },
+  orderId: { color: "#94A3B8", fontWeight: "bold" },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  divider: { height: 1, backgroundColor: "#1e293b", marginVertical: 10 },
+  workerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 15,
+    alignItems: "center",
+    backgroundColor: "#001529",
+    padding: 10,
+    borderRadius: 10,
+    marginTop: 10,
   },
-  orderID: { color: "#FFF", fontWeight: "bold" },
-  orderTotal: { color: "#D4AF37", fontWeight: "bold" },
+  callBtn: { backgroundColor: "#22C55E", padding: 10, borderRadius: 20 },
+  empty: { color: "#94A3B8", textAlign: "center", marginTop: 100 },
 });
