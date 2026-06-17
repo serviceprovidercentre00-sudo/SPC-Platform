@@ -23,6 +23,8 @@ import {
 import { auth, db } from "../../config/firebase";
 import { useCart } from "../../context/CartContext";
 
+import Footer from "../../components/Footer";
+
 const { width: windowWidth } = Dimensions.get("window");
 
 export default function HomeScreen() {
@@ -39,8 +41,9 @@ export default function HomeScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeBanner, setActiveBanner] = useState(0);
   const [currentWidth, setCurrentWidth] = useState(windowWidth);
+  const [globalAppReviews, setGlobalAppReviews] = useState([]);
 
-  // Screen size listener for layout flexibility
+  // Responsive Screen Listener
   useEffect(() => {
     const subscription = Dimensions.addEventListener("change", ({ window }) => {
       setCurrentWidth(window.width);
@@ -48,20 +51,15 @@ export default function HomeScreen() {
     return () => subscription?.remove();
   }, []);
 
-  const isDesktop = currentWidth > 900;
+  const isLargeDesktop = currentWidth > 1200; // 🛠️ Baday Monitor ke liye extra breakpoint
+  const isDesktop = currentWidth > 900 && currentWidth <= 1200;
   const isTablet = currentWidth > 600 && currentWidth <= 900;
 
-  const bannerWidth = isDesktop ? currentWidth - 80 : currentWidth - 40;
-  const bannerHeight = isDesktop ? 340 : 180;
+  const bannerWidth =
+    isDesktop || isLargeDesktop ? currentWidth - 80 : currentWidth - 40;
+  const bannerHeight = isLargeDesktop ? 380 : isDesktop ? 340 : 180;
 
-  let cardWidth = "48%";
-  if (isDesktop) {
-    cardWidth = "23.5%";
-  } else if (isTablet) {
-    cardWidth = "31%";
-  }
-
-  // --- AI EMERGENCY SYSTEM CALL HANDLER ---
+  // --- AI CALL HANDLER ---
   const VAPI_PUBLIC_KEY = "YOUR_VAPI_PUBLIC_KEY";
   const VAPI_ASSISTANT_ID = "YOUR_ASSISTANT_ID";
 
@@ -104,7 +102,7 @@ export default function HomeScreen() {
     );
   };
 
-  // --- FIREBASE REAL-TIME SUBSCRIPTIONS ---
+  // --- FIREBASE SYNC ---
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (curr) => setUser(curr));
 
@@ -138,15 +136,26 @@ export default function HomeScreen() {
       },
     );
 
+    const unsubReviews = onSnapshot(
+      query(collection(db, "completed_reviews"), orderBy("timestamp", "desc")),
+      (snap) => {
+        setGlobalAppReviews(
+          snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+        );
+      },
+      () => setGlobalAppReviews([]),
+    );
+
     return () => {
       unsubAuth();
       unsubServices();
       unsubBanners();
       unsubCats();
+      unsubReviews();
     };
   }, []);
 
-  // --- AUTOMATIC FLUID BANNER SLIDER ---
+  // --- BANNER INTERACTION SLIDER ---
   useEffect(() => {
     if (banners.length <= 1) return;
 
@@ -172,7 +181,6 @@ export default function HomeScreen() {
     }
   };
 
-  // --- NAVIGATION ACTION ROUTERS ---
   const handleQuickBook = (item) => {
     addToCart(item);
     router.push({
@@ -199,7 +207,6 @@ export default function HomeScreen() {
     });
   };
 
-  // URL Opening Safety Wrapper
   const handleOpenURL = async (url) => {
     try {
       const supported = await Linking.canOpenURL(url);
@@ -226,11 +233,22 @@ export default function HomeScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 20 }}
+        style={styles.mainScrollView}
+        contentContainerStyle={styles.scrollContentStyle}
       >
         {/* Header Branding Panel */}
-        <View style={[styles.header, isDesktop && styles.headerDesktop]}>
-          <View style={[styles.nav, isDesktop && styles.navDesktop]}>
+        <View
+          style={[
+            styles.header,
+            (isDesktop || isLargeDesktop) && styles.headerDesktop,
+          ]}
+        >
+          <View
+            style={[
+              styles.nav,
+              (isDesktop || isLargeDesktop) && styles.navDesktop,
+            ]}
+          >
             <View style={styles.logoLayoutRow}>
               <View style={styles.logoBox}>
                 <Image
@@ -251,7 +269,7 @@ export default function HomeScreen() {
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 20 }}
             >
-              {isDesktop && (
+              {(isDesktop || isLargeDesktop) && (
                 <View style={[styles.searchBar, { marginTop: 0, width: 400 }]}>
                   <Ionicons
                     name="search"
@@ -283,7 +301,7 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {!isDesktop && (
+          {!(isDesktop || isLargeDesktop) && (
             <View style={styles.searchBar}>
               <Ionicons
                 name="search"
@@ -302,13 +320,14 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* Categories Section */}
+        {/* Dynamic Content Body Wrapper */}
         <View
           style={[
             styles.contentWrapper,
-            isDesktop && styles.contentWrapperDesktop,
+            (isDesktop || isLargeDesktop) && styles.contentWrapperDesktop,
           ]}
         >
+          {/* Categories Horizontal Scroller */}
           <View style={styles.catWrapper}>
             <ScrollView
               horizontal
@@ -345,7 +364,7 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
 
-          {/* Banner Slider Section */}
+          {/* Banner Layout Slider */}
           <View style={[styles.bannerContainer, { height: bannerHeight + 25 }]}>
             {banners.length > 0 ? (
               <View style={{ width: bannerWidth, height: bannerHeight }}>
@@ -372,7 +391,6 @@ export default function HomeScreen() {
                     </View>
                   ))}
                 </ScrollView>
-
                 <View style={styles.dotRow}>
                   {banners.map((_, i) => (
                     <View
@@ -400,11 +418,11 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* AI Hotline Emergency Trigger Row */}
+          {/* AI Urgent Support Panel */}
           <TouchableOpacity
             style={[
               styles.emergencyRow,
-              isDesktop && styles.emergencyRowDesktop,
+              (isDesktop || isLargeDesktop) && styles.emergencyRowDesktop,
             ]}
             onPress={handleEmergencyAICall}
           >
@@ -412,112 +430,76 @@ export default function HomeScreen() {
             <Text style={styles.emergencyTxt}>Emergency Repair: Call Now</Text>
           </TouchableOpacity>
 
-          {/* Core Services Grid Display */}
+          {/* Grid View Main Stream Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{selectedCat} Services</Text>
-            <View style={styles.grid}>
-              {loading ? (
-                <ActivityIndicator size="large" color="#002D62" />
-              ) : (
-                filteredServices.map((item) => (
-                  <View
-                    key={item.id}
-                    style={[styles.gridCard, { width: cardWidth }]}
-                  >
-                    <Image
-                      source={{ uri: item.image || item.imageUrl }}
-                      style={styles.cardImg}
-                    />
-                    <Text style={styles.cardName} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.cardPrice}>Starts ₹{item.price}</Text>
 
-                    <TouchableOpacity
-                      style={styles.quickBookBtn}
-                      onPress={() => handleQuickBook(item)}
+            <View style={styles.gridContainerStyle}>
+              <View style={styles.grid}>
+                {loading ? (
+                  <ActivityIndicator size="large" color="#002D62" />
+                ) : (
+                  filteredServices.map((item) => (
+                    // 🛠️ DYNAMIC STRUCTURAL RESPONSIVE CARD STYLES
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.gridCard,
+                        isTablet && styles.gridCardTablet,
+                        isDesktop && styles.gridCardDesktop,
+                        isLargeDesktop && styles.gridCardLargeDesktop,
+                      ]}
                     >
-                      <Text style={styles.quickBookTxt}>BOOK NOW</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={styles.viewLink}
-                      onPress={() => handleViewServiceDetails(item)}
-                    >
-                      <Text style={styles.viewLinkTxt}>VIEW DETAILS</Text>
-                      <Ionicons
-                        name="arrow-forward"
-                        size={12}
-                        color="#64748B"
+                      <Image
+                        source={{ uri: item.image || item.imageUrl }}
+                        style={styles.cardImg}
                       />
-                    </TouchableOpacity>
-                  </View>
-                ))
-              )}
+                      <Text style={styles.cardName} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+
+                      <View style={styles.cardReviewRow}>
+                        <Ionicons name="star" size={13} color="#F59E0B" />
+                        <Text style={styles.cardReviewTxt}>
+                          {item.rating
+                            ? `${item.rating} (${item.reviewCount || 0})`
+                            : "No reviews"}
+                        </Text>
+                      </View>
+
+                      <Text style={styles.cardPrice}>Starts ₹{item.price}</Text>
+
+                      <TouchableOpacity
+                        style={styles.quickBookBtn}
+                        onPress={() => handleQuickBook(item)}
+                      >
+                        <Text style={styles.quickBookTxt}>BOOK NOW</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.viewLink}
+                        onPress={() => handleViewServiceDetails(item)}
+                      >
+                        <Text style={styles.viewLinkTxt}>VIEW DETAILS</Text>
+                        <Ionicons
+                          name="arrow-forward"
+                          size={12}
+                          color="#64748B"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Global Branding Footer Component */}
-        <View style={[styles.footer, isDesktop && styles.footerDesktop]}>
-          <Text style={styles.proFooterTitle}>Connect With Us</Text>
-
-          {/* Professional Social Badges Row */}
-          <View style={styles.proSocialRow}>
-            <TouchableOpacity
-              style={styles.proSocialLink}
-              onPress={() =>
-                handleOpenURL("https://www.facebook.com/share/1DzMopBFir/")
-              }
-            >
-              <Ionicons name="logo-facebook" size={18} color="#1877F2" />
-              <Text style={styles.proSocialText}>Facebook</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.proSocialLink}
-              onPress={() =>
-                handleOpenURL("https://instagram.com/serviceprovidercentre")
-              }
-            >
-              <Ionicons name="logo-instagram" size={18} color="#E1306C" />
-              <Text style={styles.proSocialText}>Instagram</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.proSocialLink}
-              onPress={() =>
-                handleOpenURL(
-                  "https://whatsapp.com/channel/0029VbBqtdYCXC3I0z25tn2f",
-                )
-              }
-            >
-              <Ionicons name="logo-whatsapp" size={18} color="#25D366" />
-              <Text style={styles.proSocialText}>WhatsApp</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Quick Corporate Legal Links - Working URLs */}
-          <View style={styles.legalLinksRow}>
-            <TouchableOpacity
-              onPress={() => handleOpenURL("https://www.google.com")}
-            >
-              <Text style={styles.legalLinkText}>Terms of Service</Text>
-            </TouchableOpacity>
-            <Text style={styles.legalDot}>•</Text>
-            <TouchableOpacity
-              onPress={() => handleOpenURL("https://en.wikipedia.org")}
-            >
-              <Text style={styles.legalLinkText}>Privacy Policy</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Clean Copyright Structure */}
-          <View style={styles.copyrightContainer}>
-            <Text style={styles.copyrightText}>
-              © 2026 Service Provider Centre. All Rights Reserved.
-            </Text>
-          </View>
+          {/* Footer Component Strictly Flowed */}
+          <Footer
+            isDesktop={isDesktop || isLargeDesktop}
+            handleOpenURL={handleOpenURL}
+            realCustomerReviews={globalAppReviews}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -526,11 +508,19 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   outerContainer: { flex: 1, backgroundColor: "#F8FAFC" },
-  contentWrapper: { width: "100%", paddingHorizontal: 0 },
+  mainScrollView: { flex: 1 },
+  scrollContentStyle: {
+    paddingBottom: Platform.OS === "ios" ? 130 : 100,
+  },
+  contentWrapper: {
+    width: "100%",
+    paddingHorizontal: 0,
+  },
   contentWrapperDesktop: {
-    maxWidth: 1200,
+    width: "100%",
+    maxWidth: "96%", // 🛠️ Fixed width ke bajaye dynamic percentage space baday monitors ke liye
     alignSelf: "center",
-    paddingHorizontal: 40,
+    paddingHorizontal: 20,
   },
   header: {
     backgroundColor: "#002D62",
@@ -550,7 +540,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  navDesktop: { maxWidth: 1120, width: "100%", alignSelf: "center" },
+  navDesktop: { width: "100%", alignSelf: "center" },
   logoLayoutRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   logoBox: {
     width: 46,
@@ -669,32 +659,58 @@ const styles = StyleSheet.create({
   },
   emergencyRowDesktop: { marginHorizontal: 0, padding: 20, borderRadius: 22 },
   emergencyTxt: { color: "#002D62", fontWeight: "900", fontSize: 16 },
-  section: { paddingHorizontal: 15, marginTop: 10 },
+  section: {
+    paddingHorizontal: 15,
+    marginTop: 10,
+    width: "100%",
+  },
   sectionTitle: {
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 20,
     color: "#1E293B",
   },
+  gridContainerStyle: {
+    width: "100%",
+    paddingBottom: 25,
+  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "flex-start",
-    gap: "2%",
+    justifyContent: "flex-start", // Left to Right alignment uniform spaces ke sath
+    width: "100%",
   },
+  // 🛠️ Mobile Setup (Default: 2 Columns)
   gridCard: {
     backgroundColor: "#FFF",
     borderRadius: 22,
     padding: 12,
-    marginBottom: 20,
+    marginBottom: 16,
     elevation: 4,
     shadowColor: "#0F172A",
     shadowOpacity: 0.05,
     shadowRadius: 10,
+    width: "47%",
+    marginHorizontal: "1.5%",
+  },
+  // 🛠️ Tablet Override (3 Columns)
+  gridCardTablet: {
+    width: "30.3%",
+    marginHorizontal: "1.5%",
+  },
+  // 🛠️ Standard Desktop Override (4 Columns)
+  gridCardDesktop: {
+    width: "23%",
+    marginHorizontal: "1%",
+  },
+  // 🛠️ Bada Monitor Override (5 Columns smoothly wrapping space)
+  gridCardLargeDesktop: {
+    width: "18.4%",
+    marginHorizontal: "0.8%",
   },
   cardImg: {
     width: "100%",
-    height: 130,
+    height: 145,
     borderRadius: 18,
     resizeMode: "cover",
   },
@@ -704,6 +720,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: "#1E293B",
   },
+  cardReviewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  cardReviewTxt: { fontSize: 11, color: "#64748B", fontWeight: "600" },
   cardPrice: {
     fontSize: 14,
     color: "#059669",
@@ -727,86 +750,4 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   viewLinkTxt: { color: "#64748B", fontWeight: "600", fontSize: 12 },
-
-  // --- CLEAN FOOTER STYLES WITHOUT REGIONAL LABELS ---
-  footer: {
-    paddingVertical: 35,
-    paddingHorizontal: 20,
-    alignItems: "center",
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 35,
-    borderTopRightRadius: 35,
-    marginTop: 40,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  footerDesktop: {
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    marginTop: 60,
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
-    elevation: 0,
-  },
-  proFooterTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#64748B",
-    marginBottom: 15,
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-  },
-  proSocialRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 25,
-  },
-  proSocialLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#F8FAFC",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  proSocialText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#334155",
-  },
-  legalLinksRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 15,
-    paddingTop: 5,
-  },
-  legalLinkText: {
-    fontSize: 12,
-    color: "#002D62",
-    fontWeight: "500",
-  },
-  legalDot: {
-    fontSize: 12,
-    color: "#94A3B8",
-  },
-  copyrightContainer: {
-    alignItems: "center",
-    marginTop: 5,
-  },
-  copyrightText: {
-    fontSize: 11,
-    color: "#94A3B8",
-    fontWeight: "400",
-    textAlign: "center",
-  },
 });
