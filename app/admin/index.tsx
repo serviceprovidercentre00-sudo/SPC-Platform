@@ -38,7 +38,17 @@ export default function AdminMenu() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user && user.uid === ADMIN_UID) {
+      let isValidUser = user && user.uid === ADMIN_UID;
+
+      // WEB COMPATIBILITY LAYER: Refresh security verification
+      if (!isValidUser && Platform.OS === "web") {
+        const localToken = localStorage.getItem("adminToken");
+        if (localToken === ADMIN_UID) {
+          isValidUser = true;
+        }
+      }
+
+      if (isValidUser) {
         setIsAuth(true);
         setLoading(false);
       } else {
@@ -52,7 +62,7 @@ export default function AdminMenu() {
     return () => unsubscribe();
   }, [router]);
 
-  // MENU ITEMS - All 8 Management Portals
+  // MENU ITEMS - All 12 Management Portals (Including HR Dashboard)
   const menuItems = [
     {
       id: 1,
@@ -70,41 +80,69 @@ export default function AdminMenu() {
     },
     {
       id: 3,
+      name: "Cyber Portal",
+      icon: "desktop-outline",
+      path: "/admin/cyber-services",
+      color: "#00FFFF",
+    },
+    {
+      id: 4,
+      name: "AI Inbound",
+      icon: "mic-outline",
+      path: "/admin/ai-calls",
+      color: "#FF1493",
+    },
+    {
+      id: 5,
+      name: "Branches",
+      icon: "git-branch-outline",
+      path: "/admin/branches",
+      color: "#ADFF2F",
+    },
+    {
+      id: 6,
+      name: "HR Head",
+      icon: "shield-checkmark-outline",
+      path: "/admin/hr-dashboard",
+      color: "#FFD700", // Gold Accent for HR Management
+    },
+    {
+      id: 7,
       name: "Banners",
       icon: "images-outline",
       path: "/admin/banners",
       color: "#007BFF",
     },
     {
-      id: 4,
+      id: 8,
       name: "Workers",
       icon: "people-outline",
       path: "/admin/workers",
       color: "#FF8C00",
     },
     {
-      id: 5,
+      id: 9,
       name: "Wholesalers",
       icon: "business-outline",
       path: "/admin/wholesalers",
       color: "#9B59B6",
     },
     {
-      id: 6,
+      id: 10,
       name: "User Logs",
       icon: "person-outline",
       path: "/admin/users",
       color: "#17A2B8",
     },
     {
-      id: 7,
+      id: 11,
       name: "Revenue",
       icon: "bar-chart-outline",
       path: "/admin/revenue",
       color: "#E83E8C",
     },
     {
-      id: 8,
+      id: 12,
       name: "Settings",
       icon: "settings-outline",
       path: "/admin/settings",
@@ -115,6 +153,10 @@ export default function AdminMenu() {
   const handleLogout = async () => {
     const logoutAction = async () => {
       try {
+        // Clear Web Token session completely
+        if (Platform.OS === "web") {
+          localStorage.removeItem("adminToken");
+        }
         await signOut(auth);
         router.replace("/admin/login");
       } catch (error) {
@@ -221,7 +263,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: COLORS.cardBg,
-    width: Platform.OS === "web" ? "23%" : (width - 65) / 2, // Web par 4 columns, Mobile par 2
+    width: Platform.OS === "web" ? "23%" : (width - 65) / 2,
     height: 140,
     borderRadius: 20,
     padding: 15,

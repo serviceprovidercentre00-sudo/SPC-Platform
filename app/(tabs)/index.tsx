@@ -24,6 +24,7 @@ import { auth, db } from "../../config/firebase";
 import { useCart } from "../../context/CartContext";
 
 import Footer from "../../components/Footer";
+import SplashPreloader from "../../components/SplashPreloader"; // 👈 Nayi file import kari
 
 const { width: windowWidth } = Dimensions.get("window");
 
@@ -31,6 +32,9 @@ export default function HomeScreen() {
   const router = useRouter();
   const { cartItems, addToCart } = useCart();
   const scrollRef = useRef(null);
+
+  // 🌟 Clean State handling for Standalone Splash
+  const [isSplashActive, setIsSplashActive] = useState(true);
 
   const [services, setServices] = useState([]);
   const [banners, setBanners] = useState([]);
@@ -51,7 +55,7 @@ export default function HomeScreen() {
     return () => subscription?.remove();
   }, []);
 
-  const isLargeDesktop = currentWidth > 1200; // 🛠️ Baday Monitor ke liye extra breakpoint
+  const isLargeDesktop = currentWidth > 1200;
   const isDesktop = currentWidth > 900 && currentWidth <= 1200;
   const isTablet = currentWidth > 600 && currentWidth <= 900;
 
@@ -225,6 +229,11 @@ export default function HomeScreen() {
       (selectedCat === "All" || s.category === selectedCat) &&
       s.name?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+
+  // 🛍️ KHEL KHATAM: Agar Splash true hai toh nayi file open karo, baaki index clean!
+  if (isSplashActive) {
+    return <SplashPreloader onFinish={() => setIsSplashActive(false)} />;
+  }
 
   return (
     <SafeAreaView style={styles.outerContainer}>
@@ -433,14 +442,12 @@ export default function HomeScreen() {
           {/* Grid View Main Stream Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{selectedCat} Services</Text>
-
             <View style={styles.gridContainerStyle}>
               <View style={styles.grid}>
                 {loading ? (
                   <ActivityIndicator size="large" color="#002D62" />
                 ) : (
                   filteredServices.map((item) => (
-                    // 🛠️ DYNAMIC STRUCTURAL RESPONSIVE CARD STYLES
                     <View
                       key={item.id}
                       style={[
@@ -457,7 +464,6 @@ export default function HomeScreen() {
                       <Text style={styles.cardName} numberOfLines={1}>
                         {item.name}
                       </Text>
-
                       <View style={styles.cardReviewRow}>
                         <Ionicons name="star" size={13} color="#F59E0B" />
                         <Text style={styles.cardReviewTxt}>
@@ -466,16 +472,13 @@ export default function HomeScreen() {
                             : "No reviews"}
                         </Text>
                       </View>
-
                       <Text style={styles.cardPrice}>Starts ₹{item.price}</Text>
-
                       <TouchableOpacity
                         style={styles.quickBookBtn}
                         onPress={() => handleQuickBook(item)}
                       >
                         <Text style={styles.quickBookTxt}>BOOK NOW</Text>
                       </TouchableOpacity>
-
                       <TouchableOpacity
                         style={styles.viewLink}
                         onPress={() => handleViewServiceDetails(item)}
@@ -509,16 +512,11 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   outerContainer: { flex: 1, backgroundColor: "#F8FAFC" },
   mainScrollView: { flex: 1 },
-  scrollContentStyle: {
-    paddingBottom: Platform.OS === "ios" ? 130 : 100,
-  },
-  contentWrapper: {
-    width: "100%",
-    paddingHorizontal: 0,
-  },
+  scrollContentStyle: { paddingBottom: Platform.OS === "ios" ? 130 : 100 },
+  contentWrapper: { width: "100%", paddingHorizontal: 0 },
   contentWrapperDesktop: {
     width: "100%",
-    maxWidth: "96%", // 🛠️ Fixed width ke bajaye dynamic percentage space baday monitors ke liye
+    maxWidth: "96%",
     alignSelf: "center",
     paddingHorizontal: 20,
   },
@@ -659,28 +657,20 @@ const styles = StyleSheet.create({
   },
   emergencyRowDesktop: { marginHorizontal: 0, padding: 20, borderRadius: 22 },
   emergencyTxt: { color: "#002D62", fontWeight: "900", fontSize: 16 },
-  section: {
-    paddingHorizontal: 15,
-    marginTop: 10,
-    width: "100%",
-  },
+  section: { paddingHorizontal: 15, marginTop: 10, width: "100%" },
   sectionTitle: {
     fontSize: 22,
     fontWeight: "bold",
     marginBottom: 20,
     color: "#1E293B",
   },
-  gridContainerStyle: {
-    width: "100%",
-    paddingBottom: 25,
-  },
+  gridContainerStyle: { width: "100%", paddingBottom: 25 },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "flex-start", // Left to Right alignment uniform spaces ke sath
+    justifyContent: "flex-start",
     width: "100%",
   },
-  // 🛠️ Mobile Setup (Default: 2 Columns)
   gridCard: {
     backgroundColor: "#FFF",
     borderRadius: 22,
@@ -693,21 +683,9 @@ const styles = StyleSheet.create({
     width: "47%",
     marginHorizontal: "1.5%",
   },
-  // 🛠️ Tablet Override (3 Columns)
-  gridCardTablet: {
-    width: "30.3%",
-    marginHorizontal: "1.5%",
-  },
-  // 🛠️ Standard Desktop Override (4 Columns)
-  gridCardDesktop: {
-    width: "23%",
-    marginHorizontal: "1%",
-  },
-  // 🛠️ Bada Monitor Override (5 Columns smoothly wrapping space)
-  gridCardLargeDesktop: {
-    width: "18.4%",
-    marginHorizontal: "0.8%",
-  },
+  gridCardTablet: { width: "30.3%", marginHorizontal: "1.5%" },
+  gridCardDesktop: { width: "23%", marginHorizontal: "1%" },
+  gridCardLargeDesktop: { width: "18.4%", marginHorizontal: "0.8%" },
   cardImg: {
     width: "100%",
     height: 145,
@@ -744,10 +722,10 @@ const styles = StyleSheet.create({
   viewLink: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 5,
     paddingTop: 8,
     marginTop: 5,
+    justifyContent: "center",
   },
   viewLinkTxt: { color: "#64748B", fontWeight: "600", fontSize: 12 },
 });

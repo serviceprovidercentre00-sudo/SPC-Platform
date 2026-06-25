@@ -1,17 +1,16 @@
 // @ts-nocheck
 import { Stack, useRouter } from "expo-router";
 import {
+  createUserWithEmailAndPassword,
   GoogleAuthProvider,
   onAuthStateChanged,
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
+  signInWithEmailAndPassword,
   signInWithPopup,
 } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -27,57 +26,43 @@ import { auth, db } from "../config/firebase";
 export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [showSplash, setShowSplash] = useState(true); // 🚀 Amazon/Flipkart Style Preloader State
 
-  // Phone Authentication States
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const [isOtpSent, setIsOtpSent] = useState(false);
-  const [confirmResult, setConfirmResult] = useState(null);
+  // Reward Modal States
+  const [showRewardModal, setShowRewardModal] = useState(false);
+  const [rewardAmount, setRewardAmount] = useState(0);
+
+  // Email/Password States
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false); // Toggle between Login and SignUp
 
   const router = useRouter();
 
-  // 🔥 1. INITIALIZATION EFFECTS: Auth check & Invisible reCAPTCHA Pre-load 🔥
+  // 🔥 1. INITIALIZATION EFFECT: Auth check & Preloader Timer 🔥
   useEffect(() => {
+    // Auth State Observer
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
+        // Agar pehle se login hai toh modal ka jhanjhat nahi seedhe main screen
         router.replace("/(tabs)");
       }
       setCheckingAuth(false);
     });
 
-    // FIXED: Web browser par screen load hote hi reCAPTCHA ko background me initialize kar do
-    if (Platform.OS === "web") {
-      setTimeout(() => {
-        try {
-          const container = document.getElementById("recaptcha-container");
-          if (container && !window.recaptchaVerifier) {
-            window.recaptchaVerifier = new RecaptchaVerifier(
-              auth,
-              "recaptcha-container",
-              {
-                size: "invisible",
-                callback: (response) => {
-                  // reCAPTCHA solved automatically
-                  console.log("reCAPTCHA solved successfully");
-                },
-                "expired-callback": () => {
-                  console.log("reCAPTCHA expired, resetting...");
-                  window.recaptchaVerifier?.render();
-                },
-              },
-            );
-          }
-        } catch (err) {
-          console.error("reCAPTCHA Pre-load Error:", err);
-        }
-      }, 1000); // 1 second delay taaki DOM element render ho jaye
-    }
+    // Amazon/Flipkart style preloader timer (2.5 Seconds)
+    const splashTimer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2500);
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      clearTimeout(splashTimer);
+    };
   }, []);
 
   // 🔥 2. CORE REWARD ENGINE: Welcome bonus credit mechanism 🔥
-  const syncUserToDb = async (user, isPhoneLogin = false) => {
+  const syncUserToDb = async (user, isEmailLogin = false) => {
     try {
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
@@ -94,11 +79,11 @@ export default function AuthScreen() {
         uid: user.uid,
         name:
           user.displayName ||
-          (isPhoneLogin
-            ? `SPC User (${user.phoneNumber?.slice(-4) || "Phone"})`
+          (isEmailLogin
+            ? `SPC User (${user.email?.split("@")[0] || "User"})`
             : "SPC User"),
-        email: user.email || "",
-        phoneNumber: user.phoneNumber || phoneNumber || "",
+        email: user.email || email || "",
+        phoneNumber: user.phoneNumber || "",
         photoURL:
           user.photoURL ||
           "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
@@ -116,13 +101,61 @@ export default function AuthScreen() {
       await setDoc(userRef, userData, { merge: true });
 
       if (isNewUser) {
-        Alert.alert(
-          "🎉 Congratulations!",
-          `SPC Patna me aapka swagat hai! First time sign up karne par aapko ₹${welcomeGiftAmount} ka Welcome Reward mila hai. Aap isse apni pehli booking par use kar sakte hain!`,
-        );
+        // Boring Alert ki jagah state open karke premium modal popup display hoga
+        setRewardAmount(welcomeGiftAmount);
+        setShowRewardModal(true);
+      } else {
+        // Agar puraana user hai toh seedhe home dashboard bhej do
+        router.replace("/(tabs)");
       }
     } catch (e) {
       console.error("Firestore Sync Error:", e);
+    }
+  };
+
+  // ─── EMAIL & PASSWORD LOGIN / SIGNUP HANDLER ───
+  const handleEmailAuth = async () => {
+    if (!email || !password) {
+      alert("Kripya Email aur Password dono bharein.");
+      return;
+    }
+    if (password.length < 6) {
+      alert("Password kam se kam 6 characters ka hona chahiye.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      let result;
+      if (isSignUp) {
+        // Naya Account Banane Ke Liye
+        result = await createUserWithEmailAndPassword(auth, email, password);
+        if (result.user) {
+          await syncUserToDb(result.user, true);
+        }
+      } else {
+        // Puraana Account Login Karne Ke Liye
+        result = await signInWithEmailAndPassword(auth, email, password);
+        if (result.user) {
+          router.replace("/(tabs)");
+        }
+      }
+    } catch (error) {
+      console.log("Email Auth Error:", error);
+      let errorMsg = "Authentication fail ho gaya.";
+      if (
+        error.code === "auth/user-not-found" ||
+        error.code === "auth/wrong-password"
+      ) {
+        errorMsg = "Galat Email ya Password darj kiya hai.";
+      } else if (error.code === "auth/email-already-in-use") {
+        errorMsg = "Yeh email pehle se register hai. Login karein.";
+      } else if (error.code === "auth/invalid-email") {
+        errorMsg = "Email format sahi nahi hai.";
+      }
+      alert(errorMsg);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -134,109 +167,29 @@ export default function AuthScreen() {
       const result = await signInWithPopup(auth, provider);
       if (result.user) {
         await syncUserToDb(result.user, false);
-        router.replace("/(tabs)");
       }
     } catch (error) {
       console.log("Google Login Error:", error);
-      Alert.alert("SPC Error", "Google login nahi ho paya.");
+      alert("Google login nahi ho paya.");
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── PHONE NUMBER INTERACTION LOGIC (OTP Send - BULLETPROOF) ───
-  const handleSendOtp = async () => {
-    if (!phoneNumber || phoneNumber.length < 10) {
-      Alert.alert("Error", "Kripya sahi 10-digit Phone Number darj karein.");
-      return;
-    }
-
-    setLoading(true);
-    const formattedPhone = phoneNumber.startsWith("+")
-      ? phoneNumber
-      : `+91${phoneNumber}`;
-
-    try {
-      if (Platform.OS === "web") {
-        // Agar load hote waqt recaptcha miss ho gaya ho, toh fallback double check
-        if (!window.recaptchaVerifier) {
-          window.recaptchaVerifier = new RecaptchaVerifier(
-            auth,
-            "recaptcha-container",
-            { size: "invisible" },
-          );
-        }
-
-        console.log("Sending OTP to:", formattedPhone);
-        const confirmation = await signInWithPhoneNumber(
-          auth,
-          formattedPhone,
-          window.recaptchaVerifier,
-        );
-
-        setConfirmResult(confirmation);
-        setIsOtpSent(true);
-        setLoading(false);
-        Alert.alert(
-          "OTP Sent",
-          "Aapke number par 6-digit verification code bheja gaya hai.",
-        );
-      } else {
-        // Mobile layout testing dynamic bypass
-        setIsOtpSent(true);
-        setLoading(false);
-      }
-    } catch (error) {
-      console.log("Send OTP Main Error:", error);
-
-      // 🔥 CRITICAL RECOVERY: Agar Network Timeout ya Invalid Captcha domain issue ho,
-      // toh Testing environment flow tootne nahi denge. Option bypass open ho jayega!
-      setIsOtpSent(true);
-      setLoading(false);
-      Alert.alert(
-        "Verification Panel Status",
-        "OTP process initialization completed. OTP enter karne ka panel khol diya gaya hai.",
-      );
-    }
-  };
-
-  // ─── OTP VERIFY & REWARD PROCESSOR ───
-  const handleVerifyOtp = async () => {
-    if (!otpCode || otpCode.length < 6) {
-      Alert.alert("Error", "Kripya 6-digit ka sahi OTP code dalein.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      if (confirmResult) {
-        const result = await confirmResult.confirm(otpCode);
-        if (result.user) {
-          await syncUserToDb(result.user, true);
-          router.replace("/(tabs)");
-        }
-      } else {
-        // Fallback for Test Mode login bypass
-        const dummyUser = {
-          uid: `phone_${phoneNumber}`,
-          phoneNumber: `+91${phoneNumber}`,
-          displayName: "SPC User",
-        };
-        await syncUserToDb(dummyUser, true);
-        router.replace("/(tabs)");
-      }
-    } catch (error) {
-      console.log("Verify OTP Error:", error);
-      Alert.alert("Verification Failed", "Galat ya expired OTP entered.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (checkingAuth) {
+  // 🛍️ AMAZON/FLIPKART STYLE BRAND PRELOADER DISPLAY
+  if (showSplash || checkingAuth) {
     return (
-      <View style={styles.loader}>
-        <ActivityIndicator size="large" color="#D4AF37" />
+      <View style={styles.splashContainer}>
+        <View style={styles.splashLogoBox}>
+          <Text style={styles.splashBrand}>SPC</Text>
+          <Text style={styles.splashSubBrand}>PATNA</Text>
+        </View>
+        <ActivityIndicator
+          size="large"
+          color="#D4AF37"
+          style={{ marginTop: 35 }}
+        />
+        <Text style={styles.splashLoadingTxt}>Loading Premium Services...</Text>
       </View>
     );
   }
@@ -247,19 +200,6 @@ export default function AuthScreen() {
       style={styles.container}
     >
       <Stack.Screen options={{ headerShown: false }} />
-
-      {/* FIXED: Yeh native container layout ke baahar DOM layer par reCAPTCHA anchors ko support karega */}
-      {Platform.OS === "web" && (
-        <div
-          id="recaptcha-container"
-          style={{
-            position: "absolute",
-            width: "1px",
-            height: "1px",
-            opacity: 0,
-          }}
-        ></div>
-      )}
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -272,93 +212,68 @@ export default function AuthScreen() {
           </View>
 
           <Text style={styles.welcomeText}>
-            Welcome! Login via Phone or Google to claim your Reward.
+            {isSignUp
+              ? "Create an account to claim your Welcome Reward!"
+              : "Welcome back! Login via Email or Google to manage bookings."}
           </Text>
 
-          {/* 📱 PHONE LOGIC CONTAINER */}
-          <View style={styles.phoneFormBox}>
-            {!isOtpSent ? (
-              <>
-                <View style={styles.inputWrapper}>
-                  <Text style={styles.countryCode}>+91</Text>
-                  <TextInput
-                    placeholder="Enter Phone Number"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                    style={styles.textInputStyle}
-                    editable={!loading}
-                  />
-                </View>
+          {/* 📧 EMAIL/PASSWORD FORM CONTAINER */}
+          <View style={styles.formBox}>
+            {/* Email Input */}
+            <View style={styles.inputWrapper}>
+              <TextInput
+                placeholder="Enter Email Address"
+                placeholderTextColor="#94A3B8"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+                style={styles.textInputStyle}
+                editable={!loading}
+              />
+            </View>
 
-                <TouchableOpacity
-                  style={[styles.primaryActionBtn, loading && { opacity: 0.7 }]}
-                  onPress={handleSendOtp}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#FFF" size="small" />
-                  ) : (
-                    <Text style={styles.actionBtnTxt}>
-                      Send OTP Verification
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                {/* 🔒 INPUT BOX OPENS AUTOMATICALLY NOW */}
-                <View style={styles.inputWrapper}>
-                  <TextInput
-                    placeholder="Enter 6-Digit OTP Code"
-                    placeholderTextColor="#94A3B8"
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    value={otpCode}
-                    onChangeText={setOtpCode}
-                    style={[styles.textInputStyle, { paddingLeft: 15 }]}
-                    editable={!loading}
-                  />
-                </View>
+            {/* Password Input */}
+            <View style={styles.inputWrapper}>
+              <TextInput
+                placeholder="Enter Password"
+                placeholderTextColor="#94A3B8"
+                secureTextEntry={true}
+                autoCapitalize="none"
+                value={password}
+                onChangeText={setPassword}
+                style={styles.textInputStyle}
+                editable={!loading}
+              />
+            </View>
 
-                <TouchableOpacity
-                  style={[
-                    styles.primaryActionBtn,
-                    { backgroundColor: "#059669" },
-                    loading && { opacity: 0.7 },
-                  ]}
-                  onPress={handleVerifyOtp}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#FFF" size="small" />
-                  ) : (
-                    <Text style={styles.actionBtnTxt}>
-                      Verify & Claim Reward 🎁
-                    </Text>
-                  )}
-                </TouchableOpacity>
+            {/* Main Action Button */}
+            <TouchableOpacity
+              style={[styles.primaryActionBtn, loading && { opacity: 0.7 }]}
+              onPress={handleEmailAuth}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFF" size="small" />
+              ) : (
+                <Text style={styles.actionBtnTxt}>
+                  {isSignUp ? "Sign Up & Claim Reward 🎁" : "Login to Account"}
+                </Text>
+              )}
+            </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={{ marginTop: 15 }}
-                  onPress={() => setIsOtpSent(false)}
-                  disabled={loading}
-                >
-                  <Text
-                    style={{
-                      color: "#002D62",
-                      fontWeight: "bold",
-                      fontSize: 13,
-                      opacity: loading ? 0.5 : 1,
-                    }}
-                  >
-                    Change Phone Number
-                  </Text>
-                </TouchableOpacity>
-              </>
-            )}
+            {/* Toggle Login / SignUp option */}
+            <TouchableOpacity
+              style={{ marginTop: 15 }}
+              onPress={() => setIsSignUp(!isSignUp)}
+              disabled={loading}
+            >
+              <Text style={styles.toggleTxt}>
+                {isSignUp
+                  ? "Already have an account? Login"
+                  : "Don't have an account? Sign Up"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Divider Line */}
@@ -374,7 +289,7 @@ export default function AuthScreen() {
             onPress={handleGoogleLogin}
             disabled={loading}
           >
-            {loading && !isOtpSent ? (
+            {loading && isSignUp ? (
               <ActivityIndicator color="#002D62" />
             ) : (
               <>
@@ -394,18 +309,49 @@ export default function AuthScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* 🎁 PROFESSIONAL INTERACTIVE REWARD POPUP MODAL WINDOW */}
+      {showRewardModal && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.rewardCard}>
+            <Text style={styles.congratsTitle}>🎉 CONGRATULATIONS! 🎉</Text>
+
+            <View style={styles.giftIconBox}>
+              <Image
+                source={{
+                  uri: "https://cdn-icons-png.flaticon.com/512/4142/4142144.png",
+                }}
+                style={styles.giftImage}
+              />
+            </View>
+
+            <Text style={styles.rewardSubTitle}>Welcome to SPC Patna</Text>
+            <Text style={styles.amountTxt}>₹{rewardAmount}</Text>
+
+            <Text style={styles.rewardDescription}>
+              Aapka sign up reward aapke account wallet balance me credit kar
+              diya gaya hai.
+            </Text>
+
+            {/* Button jo user ko wallet page par bhejega */}
+            <TouchableOpacity
+              style={styles.walletRedirectBtn}
+              onPress={() => {
+                setShowRewardModal(false);
+                router.replace("/(tabs)/wallet"); // 💰 Redirects straight to the wallet tab screen
+              }}
+            >
+              <Text style={styles.walletBtnTxt}>Go to Wallet 💰</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#002D62" },
-  loader: {
-    flex: 1,
-    backgroundColor: "#002D62",
-    justifyContent: "center",
-    alignItems: "center",
-  },
   scrollContent: { flexGrow: 1, justifyContent: "center", padding: 25 },
   card: {
     backgroundColor: "#FFF",
@@ -438,7 +384,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     lineHeight: 20,
   },
-  phoneFormBox: { width: "100%", alignItems: "center", marginBottom: 5 },
+  formBox: { width: "100%", alignItems: "center", marginBottom: 5 },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
@@ -451,22 +397,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 15,
     marginBottom: 15,
   },
-  countryCode: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#1E293B",
-    borderRightWidth: 1.5,
-    borderRightColor: "#E2E8F0",
-    paddingRight: 10,
-    marginRight: 12,
-  },
   textInputStyle: {
     flex: 1,
     height: "100%",
     color: "#1E293B",
     fontSize: 16,
     fontWeight: "500",
-    borderStyle: "none",
+    outlineStyle: "none",
   },
   primaryActionBtn: {
     backgroundColor: "#002D62",
@@ -479,7 +416,11 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   actionBtnTxt: { color: "#FFF", fontSize: 16, fontWeight: "bold" },
-
+  toggleTxt: {
+    color: "#002D62",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
   dividerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -493,7 +434,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     paddingHorizontal: 15,
   },
-
   googleBtn: {
     flexDirection: "row",
     backgroundColor: "#FFF",
@@ -518,4 +458,114 @@ const styles = StyleSheet.create({
   googleIcon: { width: 22, height: 22, marginRight: 15 },
   googleBtnText: { color: "#1E293B", fontWeight: "bold", fontSize: 16 },
   footerText: { marginTop: 25, color: "#94A3B8", fontSize: 11 },
+
+  // ─── AMAZON/FLIPKART STYLE PRELOADER PRE-LAUNCH CODES ───
+  splashContainer: {
+    flex: 1,
+    backgroundColor: "#002D62",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  splashLogoBox: {
+    alignItems: "center",
+  },
+  splashBrand: {
+    fontSize: 55,
+    fontWeight: "900",
+    color: "#FFF",
+    letterSpacing: 4,
+  },
+  splashSubBrand: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#D4AF37",
+    letterSpacing: 6,
+    marginTop: -5,
+  },
+  splashLoadingTxt: {
+    color: "#94A3B8",
+    fontSize: 14,
+    marginTop: 15,
+    fontWeight: "500",
+  },
+
+  // ─── PREMIUM OVERLAY POPUP MODAL CODES ───
+  modalOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 45, 98, 0.85)", // Dark Blue Blur Contrast Window
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  },
+  rewardCard: {
+    backgroundColor: "#FFF",
+    width: "90%",
+    maxWidth: 380,
+    borderRadius: 25,
+    padding: 30,
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+      },
+      android: { elevation: 20 },
+      web: { boxShadow: "0px 10px 30px rgba(0,0,0,0.3)" },
+    }),
+  },
+  congratsTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#059669",
+    textAlign: "center",
+    marginBottom: 15,
+  },
+  giftIconBox: {
+    width: 100,
+    height: 100,
+    marginBottom: 15,
+  },
+  giftImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "contain",
+  },
+  rewardSubTitle: {
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  amountTxt: {
+    fontSize: 48,
+    fontWeight: "900",
+    color: "#002D62",
+    marginVertical: 10,
+  },
+  rewardDescription: {
+    fontSize: 13,
+    color: "#475569",
+    textAlign: "center",
+    lineHeight: 18,
+    marginBottom: 25,
+    paddingHorizontal: 10,
+  },
+  walletRedirectBtn: {
+    backgroundColor: "#D4AF37", // Premium Gold Color Style
+    width: "100%",
+    height: 55,
+    borderRadius: 15,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  walletBtnTxt: {
+    color: "#002D62",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
 });
