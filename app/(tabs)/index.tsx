@@ -63,25 +63,26 @@ export default function HomeScreen() {
   const VAPI_PUBLIC_KEY = "YOUR_VAPI_PUBLIC_KEY";
   const VAPI_ASSISTANT_ID = "YOUR_ASSISTANT_ID";
 
-  // Direct Direct Phone Dialer Trigger Function
-  const makeDirectPhoneCall = (phoneNumber = "+918409372138") => {
-    const formattedNum =
-      Platform.OS === "android"
-        ? `tel:${phoneNumber}`
-        : `telprompt:${phoneNumber}`;
-    Linking.canOpenURL(formattedNum)
-      .then((supported) => {
-        if (supported) {
-          Linking.openURL(formattedNum);
-        } else {
-          Alert.alert("Error", "Phone dialer open nahi ho pa raha hai.");
-        }
-      })
-      .catch(() => Linking.openURL(`tel:${phoneNumber}`));
+  // Direct Phone Dialer Trigger Function
+  const makeDirectPhoneCall = async (phoneNumber = "+919470884239") => {
+    const formattedNum = `tel:${phoneNumber}`;
+    try {
+      const canOpen = await Linking.canOpenURL(formattedNum);
+      if (canOpen) {
+        await Linking.openURL(formattedNum);
+      } else {
+        await Linking.openURL(`tel:${phoneNumber}`);
+      }
+    } catch (err) {
+      Alert.alert(
+        "Call Prompt",
+        `Aap is number par call karein: ${phoneNumber}`,
+      );
+    }
   };
 
   const handleEmergencyAICall = async () => {
-    const userPhone = user?.phoneNumber || "+918409372138";
+    const userPhone = user?.phoneNumber || "+919470884239";
     Alert.alert(
       "SPC Emergency Support",
       "Aap kaise connect karna chahte hain?",
@@ -89,7 +90,7 @@ export default function HomeScreen() {
         { text: "Cancel", style: "cancel" },
         {
           text: "Direct Call",
-          onPress: () => makeDirectPhoneCall("+918409372138"),
+          onPress: () => makeDirectPhoneCall("+919470884239"),
         },
         {
           text: "AI Callback",
@@ -112,10 +113,10 @@ export default function HomeScreen() {
                   "AI Assistant aapke number par call connect kar raha hai...",
                 );
               } else {
-                makeDirectPhoneCall("+918409372138");
+                makeDirectPhoneCall("+919470884239");
               }
             } catch (e) {
-              makeDirectPhoneCall("+918409372138");
+              makeDirectPhoneCall("+919470884239");
             }
           },
         },
@@ -446,7 +447,7 @@ export default function HomeScreen() {
           >
             <Ionicons name="call" size={22} color="#002D62" />
             <Text style={styles.emergencyTxt}>
-              Emergency Repair: Call Now (+91 8409372138)
+              Emergency Repair: Call Now (+91 9470884239)
             </Text>
           </TouchableOpacity>
 

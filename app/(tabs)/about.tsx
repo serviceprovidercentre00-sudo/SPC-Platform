@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { db } from "../../config/firebase"; // Aapke firebase config ka sahi path
+import { db } from "../../config/firebase";
 
 export default function AboutScreen() {
   const router = useRouter();
@@ -43,10 +43,18 @@ export default function AboutScreen() {
   }, []);
 
   // Support & Social Links Functions
-  const handleCallSupport = () => {
-    Linking.openURL("tel:+919876543210").catch(() =>
-      Alert.alert("Error", "Call nahi lagaya ja saka."),
-    );
+  const handleCallSupport = async () => {
+    const phoneNumber = "tel:+919470884239";
+    try {
+      const canOpen = await Linking.canOpenURL(phoneNumber);
+      if (canOpen) {
+        await Linking.openURL(phoneNumber);
+      } else {
+        await Linking.openURL(phoneNumber);
+      }
+    } catch (err) {
+      Alert.alert("Error", "Call nahi lagaya ja saka. Dial: +91 9470884239");
+    }
   };
 
   const openSocialLink = (url: string) => {
@@ -86,7 +94,7 @@ export default function AboutScreen() {
           </Text>
         </View>
 
-        {/* 🌟 2. Trust Shield: 3-Month Guarantee */}
+        {/* 2. Trust Shield: 3-Month Guarantee */}
         <View style={styles.guaranteeCard}>
           <Ionicons name="ribbon" size={30} color="#002D62" />
           <View style={styles.guaranteeTextContainer}>
@@ -101,7 +109,7 @@ export default function AboutScreen() {
           </View>
         </View>
 
-        {/* 🏢 3. Company Overview */}
+        {/* 3. Company Overview */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>ℹ️ Hamare Baare Mein</Text>
           <Text style={styles.paraText}>
@@ -112,7 +120,7 @@ export default function AboutScreen() {
           </Text>
         </View>
 
-        {/* 🤝 4. Help & Support Desk */}
+        {/* 4. Help & Support Desk */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📞 Help & Support Center</Text>
           <Text style={styles.paraText2}>
@@ -131,7 +139,7 @@ export default function AboutScreen() {
 
             <TouchableOpacity
               style={styles.whatsappBtn}
-              onPress={() => openSocialLink("https://wa.me/919876543210")}
+              onPress={() => openSocialLink("https://wa.me/919470884239")}
             >
               <Ionicons name="logo-whatsapp" size={18} color="#FFF" />
               <Text style={styles.btnText}>WhatsApp Chat</Text>
@@ -153,7 +161,7 @@ export default function AboutScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* 📍 5. Dynamic Company Branches Section */}
+        {/* 5. Dynamic Company Branches Section */}
         <Text style={styles.sectionTitleOuter}>
           🏢 Our Branches & Locations (Patna Area)
         </Text>
@@ -196,14 +204,16 @@ export default function AboutScreen() {
           ))
         )}
 
-        {/* 🌐 6. Connect On Social Media Section */}
+        {/* 6. Connect On Social Media Section */}
         <View style={styles.socialSection}>
           <Text style={styles.socialTitle}>Connect With Us</Text>
           <View style={styles.socialIconsRow}>
             {/* Facebook */}
             <TouchableOpacity
               style={[styles.socialIconCircle, { backgroundColor: "#1877F2" }]}
-              onPress={() => openSocialLink("https://facebook.com/yourpage")}
+              onPress={() =>
+                openSocialLink("https://facebook.com/serviceprovidercenter")
+              }
             >
               <Ionicons name="logo-facebook" size={22} color="#FFF" />
             </TouchableOpacity>
@@ -212,7 +222,7 @@ export default function AboutScreen() {
             <TouchableOpacity
               style={[styles.socialIconCircle, { backgroundColor: "#E1306C" }]}
               onPress={() =>
-                openSocialLink("https://instagram.com/yourprofile")
+                openSocialLink("https://instagram.com/serviceprovidercenter")
               }
             >
               <Ionicons name="logo-instagram" size={22} color="#FFF" />
@@ -221,7 +231,7 @@ export default function AboutScreen() {
             {/* WhatsApp Channel/Community */}
             <TouchableOpacity
               style={[styles.socialIconCircle, { backgroundColor: "#25D366" }]}
-              onPress={() => openSocialLink("https://wa.me/919876543210")}
+              onPress={() => openSocialLink("https://wa.me/919470884239")}
             >
               <Ionicons name="logo-whatsapp" size={22} color="#FFF" />
             </TouchableOpacity>
@@ -379,7 +389,6 @@ const styles = StyleSheet.create({
   },
   ticketBtnText: { color: "#002D62", fontSize: 12, fontWeight: "bold" },
 
-  // Empty State
   emptyBranchBox: {
     backgroundColor: "#FFF",
     padding: 20,
@@ -397,7 +406,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // Branch Cards
   branchCard: {
     backgroundColor: "#FFF",
     padding: 14,
@@ -423,7 +431,6 @@ const styles = StyleSheet.create({
   branchDetail: { fontSize: 12, color: "#475569", marginTop: 2 },
   boldLabel: { fontWeight: "600", color: "#1E293B" },
 
-  // Social Media Section Styles
   socialSection: {
     backgroundColor: "#FFF",
     padding: 16,
