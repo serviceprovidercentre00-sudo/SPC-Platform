@@ -24,7 +24,7 @@ import { auth, db } from "../../config/firebase";
 import { useCart } from "../../context/CartContext";
 
 import Footer from "../../components/Footer";
-import SplashPreloader from "../../components/SplashPreloader"; // 👈 Nayi file import kari
+import SplashPreloader from "../../components/SplashPreloader";
 
 const { width: windowWidth } = Dimensions.get("window");
 
@@ -33,9 +33,7 @@ export default function HomeScreen() {
   const { cartItems, addToCart } = useCart();
   const scrollRef = useRef(null);
 
-  // 🌟 Clean State handling for Standalone Splash
   const [isSplashActive, setIsSplashActive] = useState(true);
-
   const [services, setServices] = useState([]);
   const [banners, setBanners] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -47,7 +45,6 @@ export default function HomeScreen() {
   const [currentWidth, setCurrentWidth] = useState(windowWidth);
   const [globalAppReviews, setGlobalAppReviews] = useState([]);
 
-  // Responsive Screen Listener
   useEffect(() => {
     const subscription = Dimensions.addEventListener("change", ({ window }) => {
       setCurrentWidth(window.width);
@@ -63,19 +60,39 @@ export default function HomeScreen() {
     isDesktop || isLargeDesktop ? currentWidth - 80 : currentWidth - 40;
   const bannerHeight = isLargeDesktop ? 380 : isDesktop ? 340 : 180;
 
-  // --- AI CALL HANDLER ---
   const VAPI_PUBLIC_KEY = "YOUR_VAPI_PUBLIC_KEY";
   const VAPI_ASSISTANT_ID = "YOUR_ASSISTANT_ID";
+
+  // Direct Direct Phone Dialer Trigger Function
+  const makeDirectPhoneCall = (phoneNumber = "+918409372138") => {
+    const formattedNum =
+      Platform.OS === "android"
+        ? `tel:${phoneNumber}`
+        : `telprompt:${phoneNumber}`;
+    Linking.canOpenURL(formattedNum)
+      .then((supported) => {
+        if (supported) {
+          Linking.openURL(formattedNum);
+        } else {
+          Alert.alert("Error", "Phone dialer open nahi ho pa raha hai.");
+        }
+      })
+      .catch(() => Linking.openURL(`tel:${phoneNumber}`));
+  };
 
   const handleEmergencyAICall = async () => {
     const userPhone = user?.phoneNumber || "+918409372138";
     Alert.alert(
-      "SPC Emergency AI",
-      "Do you want to talk with our AI Assistant?",
+      "SPC Emergency Support",
+      "Aap kaise connect karna chahte hain?",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Call Me",
+          text: "Direct Call",
+          onPress: () => makeDirectPhoneCall("+918409372138"),
+        },
+        {
+          text: "AI Callback",
           onPress: async () => {
             try {
               const res = await fetch("https://api.vapi.ai/call/phone", {
@@ -92,13 +109,13 @@ export default function HomeScreen() {
               if (res.ok) {
                 Alert.alert(
                   "Connecting",
-                  "AI Assistant is dialing your number...",
+                  "AI Assistant aapke number par call connect kar raha hai...",
                 );
               } else {
-                Linking.openURL("tel:+918409372138");
+                makeDirectPhoneCall("+918409372138");
               }
             } catch (e) {
-              Linking.openURL("tel:+918409372138");
+              makeDirectPhoneCall("+918409372138");
             }
           },
         },
@@ -106,7 +123,6 @@ export default function HomeScreen() {
     );
   };
 
-  // --- FIREBASE SYNC ---
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, (curr) => setUser(curr));
 
@@ -159,7 +175,6 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // --- BANNER INTERACTION SLIDER ---
   useEffect(() => {
     if (banners.length <= 1) return;
 
@@ -230,7 +245,6 @@ export default function HomeScreen() {
       s.name?.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  // 🛍️ KHEL KHATAM: Agar Splash true hai toh nayi file open karo, baaki index clean!
   if (isSplashActive) {
     return <SplashPreloader onFinish={() => setIsSplashActive(false)} />;
   }
@@ -245,7 +259,6 @@ export default function HomeScreen() {
         style={styles.mainScrollView}
         contentContainerStyle={styles.scrollContentStyle}
       >
-        {/* Header Branding Panel */}
         <View
           style={[
             styles.header,
@@ -329,14 +342,12 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* Dynamic Content Body Wrapper */}
         <View
           style={[
             styles.contentWrapper,
             (isDesktop || isLargeDesktop) && styles.contentWrapperDesktop,
           ]}
         >
-          {/* Categories Horizontal Scroller */}
           <View style={styles.catWrapper}>
             <ScrollView
               horizontal
@@ -373,7 +384,6 @@ export default function HomeScreen() {
             </ScrollView>
           </View>
 
-          {/* Banner Layout Slider */}
           <View style={[styles.bannerContainer, { height: bannerHeight + 25 }]}>
             {banners.length > 0 ? (
               <View style={{ width: bannerWidth, height: bannerHeight }}>
@@ -427,7 +437,6 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* AI Urgent Support Panel */}
           <TouchableOpacity
             style={[
               styles.emergencyRow,
@@ -436,10 +445,11 @@ export default function HomeScreen() {
             onPress={handleEmergencyAICall}
           >
             <Ionicons name="call" size={22} color="#002D62" />
-            <Text style={styles.emergencyTxt}>Emergency Repair: Call Now</Text>
+            <Text style={styles.emergencyTxt}>
+              Emergency Repair: Call Now (+91 8409372138)
+            </Text>
           </TouchableOpacity>
 
-          {/* Grid View Main Stream Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{selectedCat} Services</Text>
             <View style={styles.gridContainerStyle}>
@@ -497,7 +507,6 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* Footer Component Strictly Flowed */}
           <Footer
             isDesktop={isDesktop || isLargeDesktop}
             handleOpenURL={handleOpenURL}
