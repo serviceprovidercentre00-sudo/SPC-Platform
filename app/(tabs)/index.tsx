@@ -24,6 +24,7 @@ import { auth, db } from "../../config/firebase";
 import { useCart } from "../../context/CartContext";
 
 import Footer from "../../components/Footer";
+import SEO from "../../components/SEO"; // <--- SEO component imported
 import SplashPreloader from "../../components/SplashPreloader";
 
 const { width: windowWidth } = Dimensions.get("window");
@@ -63,7 +64,6 @@ export default function HomeScreen() {
   const VAPI_PUBLIC_KEY = "YOUR_VAPI_PUBLIC_KEY";
   const VAPI_ASSISTANT_ID = "YOUR_ASSISTANT_ID";
 
-  // Fixed Direct Phone Dialer Logic with cross-platform URL validation
   const makeDirectPhoneCall = async (phoneNumber = "+919470884239") => {
     const formattedNumber = phoneNumber.replace(/[^0-9+]/g, "");
     const telUrl = `tel:${formattedNumber}`;
@@ -249,9 +249,9 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.outerContainer}>
+      <SEO /> {/* <--- Custom SEO & Favicon added here */}
       <StatusBar barStyle="light-content" backgroundColor="#002D62" />
       <Stack.Screen options={{ headerShown: false }} />
-
       <ScrollView
         showsVerticalScrollIndicator={false}
         style={styles.mainScrollView}
@@ -435,7 +435,6 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* Emergency Call Action Banner (Without Contact Number Text) */}
           <TouchableOpacity
             style={[
               styles.emergencyRow,

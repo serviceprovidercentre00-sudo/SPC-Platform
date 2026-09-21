@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://spc-platform.vercel.app/sitemap.xml
