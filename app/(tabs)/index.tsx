@@ -63,25 +63,27 @@ export default function HomeScreen() {
   const VAPI_PUBLIC_KEY = "YOUR_VAPI_PUBLIC_KEY";
   const VAPI_ASSISTANT_ID = "YOUR_ASSISTANT_ID";
 
-  // Direct Phone Dialer Trigger Function
+  // Fixed Direct Phone Dialer Logic with cross-platform URL validation
   const makeDirectPhoneCall = async (phoneNumber = "+919470884239") => {
-    const formattedNum = `tel:${phoneNumber}`;
+    const formattedNumber = phoneNumber.replace(/[^0-9+]/g, "");
+    const telUrl = `tel:${formattedNumber}`;
+
     try {
-      const canOpen = await Linking.canOpenURL(formattedNum);
-      if (canOpen) {
-        await Linking.openURL(formattedNum);
+      const supported = await Linking.canOpenURL(telUrl);
+      if (supported) {
+        await Linking.openURL(telUrl);
       } else {
-        await Linking.openURL(`tel:${phoneNumber}`);
+        await Linking.openURL(`tel:${formattedNumber}`);
       }
     } catch (err) {
       Alert.alert(
         "Call Prompt",
-        `Aap is number par call karein: ${phoneNumber}`,
+        `Dialpad open nahi ho saka. Kripya is number par manual call karein: ${phoneNumber}`,
       );
     }
   };
 
-  const handleEmergencyAICall = async () => {
+  const handleEmergencyAICall = () => {
     const userPhone = user?.phoneNumber || "+919470884239";
     Alert.alert(
       "SPC Emergency Support",
@@ -229,14 +231,9 @@ export default function HomeScreen() {
 
   const handleOpenURL = async (url) => {
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert("Error", "Cannot open this link at the moment");
-      }
+      await Linking.openURL(url);
     } catch (error) {
-      Alert.alert("Error", "Something went wrong while opening the link");
+      Alert.alert("Error", "Link open nahi kiya ja saka");
     }
   };
 
@@ -438,17 +435,17 @@ export default function HomeScreen() {
             )}
           </View>
 
+          {/* Emergency Call Action Banner (Without Contact Number Text) */}
           <TouchableOpacity
             style={[
               styles.emergencyRow,
               (isDesktop || isLargeDesktop) && styles.emergencyRowDesktop,
             ]}
             onPress={handleEmergencyAICall}
+            activeOpacity={0.8}
           >
             <Ionicons name="call" size={22} color="#002D62" />
-            <Text style={styles.emergencyTxt}>
-              Emergency Repair: Call Now (+91 9470884239)
-            </Text>
+            <Text style={styles.emergencyTxt}>Emergency Repair: Call Now</Text>
           </TouchableOpacity>
 
           <View style={styles.section}>
