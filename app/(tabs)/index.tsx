@@ -24,7 +24,7 @@ import { auth, db } from "../../config/firebase";
 import { useCart } from "../../context/CartContext";
 
 import Footer from "../../components/Footer";
-import SEO from "../../components/SEO"; // <--- SEO component imported
+import SEO from "../../components/SEO";
 import SplashPreloader from "../../components/SplashPreloader";
 
 const { width: windowWidth } = Dimensions.get("window");
@@ -68,12 +68,17 @@ export default function HomeScreen() {
     const formattedNumber = phoneNumber.replace(/[^0-9+]/g, "");
     const telUrl = `tel:${formattedNumber}`;
 
+    if (Platform.OS === "web") {
+      window.location.href = telUrl;
+      return;
+    }
+
     try {
       const supported = await Linking.canOpenURL(telUrl);
       if (supported) {
         await Linking.openURL(telUrl);
       } else {
-        await Linking.openURL(`tel:${formattedNumber}`);
+        await Linking.openURL(telUrl);
       }
     } catch (err) {
       Alert.alert(
@@ -231,7 +236,11 @@ export default function HomeScreen() {
 
   const handleOpenURL = async (url) => {
     try {
-      await Linking.openURL(url);
+      if (Platform.OS === "web") {
+        window.open(url, "_blank");
+      } else {
+        await Linking.openURL(url);
+      }
     } catch (error) {
       Alert.alert("Error", "Link open nahi kiya ja saka");
     }
@@ -249,7 +258,7 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.outerContainer}>
-      <SEO /> {/* <--- Custom SEO & Favicon added here */}
+      <SEO />
       <StatusBar barStyle="light-content" backgroundColor="#002D62" />
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView
@@ -592,7 +601,12 @@ const styles = StyleSheet.create({
     marginTop: 20,
     alignItems: "center",
   },
-  searchInput: { flex: 1, height: 40, color: "#1E293B", outlineStyle: "none" },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    color: "#1E293B",
+    ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}),
+  },
   catWrapper: { marginVertical: 20 },
   catItem: { alignItems: "center", width: 90, marginHorizontal: 5 },
   iconBox: {
