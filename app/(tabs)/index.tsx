@@ -61,10 +61,8 @@ export default function HomeScreen() {
     isDesktop || isLargeDesktop ? currentWidth - 80 : currentWidth - 40;
   const bannerHeight = isLargeDesktop ? 380 : isDesktop ? 340 : 180;
 
-  const VAPI_PUBLIC_KEY = "YOUR_VAPI_PUBLIC_KEY";
-  const VAPI_ASSISTANT_ID = "YOUR_ASSISTANT_ID";
-
-  const makeDirectPhoneCall = async (phoneNumber = "+919470884239") => {
+  // About Page Wala Same Call Functionality Logic
+  const handleEmergencyCall = async (phoneNumber = "+919470884239") => {
     const formattedNumber = phoneNumber.replace(/[^0-9+]/g, "");
     const telUrl = `tel:${formattedNumber}`;
 
@@ -86,49 +84,6 @@ export default function HomeScreen() {
         `Dialpad open nahi ho saka. Kripya is number par manual call karein: ${phoneNumber}`,
       );
     }
-  };
-
-  const handleEmergencyAICall = () => {
-    const userPhone = user?.phoneNumber || "+919470884239";
-    Alert.alert(
-      "SPC Emergency Support",
-      "Aap kaise connect karna chahte hain?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Direct Call",
-          onPress: () => makeDirectPhoneCall("+919470884239"),
-        },
-        {
-          text: "AI Callback",
-          onPress: async () => {
-            try {
-              const res = await fetch("https://api.vapi.ai/call/phone", {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${VAPI_PUBLIC_KEY}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  customer: { number: userPhone },
-                  assistantId: VAPI_ASSISTANT_ID,
-                }),
-              });
-              if (res.ok) {
-                Alert.alert(
-                  "Connecting",
-                  "AI Assistant aapke number par call connect kar raha hai...",
-                );
-              } else {
-                makeDirectPhoneCall("+919470884239");
-              }
-            } catch (e) {
-              makeDirectPhoneCall("+919470884239");
-            }
-          },
-        },
-      ],
-    );
   };
 
   useEffect(() => {
@@ -444,12 +399,13 @@ export default function HomeScreen() {
             )}
           </View>
 
+          {/* About Page jaisa Direct Call Button */}
           <TouchableOpacity
             style={[
               styles.emergencyRow,
               (isDesktop || isLargeDesktop) && styles.emergencyRowDesktop,
             ]}
-            onPress={handleEmergencyAICall}
+            onPress={() => handleEmergencyCall("+919470884239")}
             activeOpacity={0.8}
           >
             <Ionicons name="call" size={22} color="#002D62" />

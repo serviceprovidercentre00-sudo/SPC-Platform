@@ -1,16 +1,30 @@
 // @ts-nocheck
 import { Stack } from "expo-router";
-import Head from "expo-router/head"; // <--- Head ko expo-router/head se import karna hota hai
+import Head from "expo-router/head";
 import { CartProvider } from "../context/CartContext";
 
 export default function RootLayout() {
   return (
     <CartProvider>
       <Head>
-        <title>SPC - Service Provider Center</title>
+        {/* Global Site Title & Branding */}
+        <title>
+          Service Provider Center (SPC) | Home Repair & Utility Services
+        </title>
+
+        {/* Web Favicon Icons */}
         <link rel="icon" type="image/png" href="/favicon.png" />
-        <link rel="shortcut icon" href="/favicon.png" />
+        <link rel="shortcut icon" href="/favicon.png" type="image/x-icon" />
         <link rel="apple-touch-icon" href="/favicon.png" />
+
+        {/* Global Meta Tags */}
+        <meta name="application-name" content="Service Provider Center (SPC)" />
+        <meta name="apple-mobile-web-app-title" content="SPC Repair" />
+        <meta
+          name="description"
+          content="Service Provider Center (SPC) - Doorstep home repair, electrician, plumber, fan, and utility services in Patna & Fatwah."
+        />
+        <meta property="og:site_name" content="Service Provider Center (SPC)" />
       </Head>
 
       <Stack screenOptions={{ headerShown: false }}>

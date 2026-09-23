@@ -9,17 +9,20 @@ interface SEOProps {
 }
 
 export default function SEO({
-  title = "Best Home Repair & Electrician Service in Patna | Service Provider Center (SPC)",
-  description = "Top rated home repair services in Patna & Fatwah. Ceiling fan repair, BLDC motor wiring, plumber, electrician, and emergency home utility repair services.",
+  title = "Service Provider Center (SPC) | Best Home Utility Repair Services in Patna & Fatwah",
+  description = "Top rated home repair services in Patna & Fatwah. Ceiling fan repair, BLDC motor wiring, plumber, electrician, cyber services, and emergency home utility repairs.",
   keywords = "repairing near me, electrician in patna, plumber in patna, fan repair patna, motor winding fatwah, home repair services, service provider center, spc repair",
 }: SEOProps) {
+  const siteUrl = "https://spc-platform.vercel.app";
+  const logoUrl = "https://spc-platform.vercel.app/favicon.png";
+
   const schemaData = {
     "@context": "https://schema.org",
     "@type": "HomeAndConstructionBusiness",
     name: "Service Provider Center (SPC)",
-    image: "https://spc-platform.vercel.app/favicon.png",
-    "@id": "https://spc-platform.vercel.app",
-    url: "https://spc-platform.vercel.app",
+    image: logoUrl,
+    "@id": siteUrl,
+    url: siteUrl,
     telephone: "+919470884239",
     priceRange: "₹₹",
     address: {
@@ -42,29 +45,27 @@ export default function SEO({
 
   return (
     <Head>
-      {/* Title & Favicon */}
+      {/* Title & Browser Favicon Logo */}
       <title>{title}</title>
       <link rel="icon" type="image/png" href="/favicon.png" />
-      <link rel="shortcut icon" href="/favicon.png" />
+      <link rel="shortcut icon" href="/favicon.png" type="image/x-icon" />
       <link rel="apple-touch-icon" href="/favicon.png" />
 
       {/* Meta Tags */}
       <meta name="description" content={description} />
       <meta name="keywords" content={keywords} />
       <meta name="robots" content="index, follow" />
-      <meta name="author" content="Service Provider Center" />
+      <meta name="author" content="Service Provider Center (SPC)" />
 
-      {/* Open Graph Tags for Social Media */}
+      {/* Open Graph Tags for Social Sharing */}
       <meta property="og:type" content="website" />
-      <meta property="og:url" content="https://spc-platform.vercel.app/" />
+      <meta property="og:site_name" content="Service Provider Center (SPC)" />
+      <meta property="og:url" content={siteUrl} />
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
-      <meta
-        property="og:image"
-        content="https://spc-platform.vercel.app/favicon.png"
-      />
+      <meta property="og:image" content={logoUrl} />
 
-      {/* Structured Data Schema for Google & AI Search */}
+      {/* Structured Data Schema for Search Engines */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
