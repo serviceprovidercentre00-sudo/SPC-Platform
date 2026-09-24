@@ -12,19 +12,34 @@ export default function RootLayout() {
           Service Provider Center (SPC) | Home Repair & Utility Services
         </title>
 
-        {/* Web Favicon Icons */}
-        <link rel="icon" type="image/png" href="/favicon.png" />
-        <link rel="shortcut icon" href="/favicon.png" type="image/x-icon" />
-        <link rel="apple-touch-icon" href="/favicon.png" />
+        {/* Absolute Favicon URLs for Google Search Crawlers */}
+        <link
+          rel="icon"
+          type="image/png"
+          href="https://spc-platform.vercel.app/favicon.png"
+        />
+        <link
+          rel="shortcut icon"
+          href="https://spc-platform.vercel.app/favicon.png"
+          type="image/x-icon"
+        />
+        <link
+          rel="apple-touch-icon"
+          href="https://spc-platform.vercel.app/favicon.png"
+        />
 
-        {/* Global Meta Tags */}
-        <meta name="application-name" content="Service Provider Center (SPC)" />
-        <meta name="apple-mobile-web-app-title" content="SPC Repair" />
+        {/* Global & Google Search Site Name Meta Tags */}
+        <meta name="application-name" content="Service Provider Center" />
+        <meta
+          name="apple-mobile-web-app-title"
+          content="Service Provider Center"
+        />
+        <meta name="site_name" content="Service Provider Center" />
+        <meta property="og:site_name" content="Service Provider Center" />
         <meta
           name="description"
           content="Service Provider Center (SPC) - Doorstep home repair, electrician, plumber, fan, and utility services in Patna & Fatwah."
         />
-        <meta property="og:site_name" content="Service Provider Center (SPC)" />
       </Head>
 
       <Stack screenOptions={{ headerShown: false }}>
